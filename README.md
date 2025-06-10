@@ -1,24 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# pumptge.fun
+
+A website that allows users to track their losses on pump.fun on the Solana blockchain. This project helps users visualize and understand their transaction history and performance on pump.fun.
+
+## Features
+
+- Connect Solana wallet
+- View transaction history
+- Calculate total losses/gains
+- Real-time price updates
+- Beautiful and intuitive UI
 
 ## Getting Started
 
-First, run the development server:
-
+1. Clone the repository
+2. Install dependencies:
+```bash
+npm install
+```
+3. Run the development server:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Built With
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js
+- TypeScript
+- Tailwind CSS
+- Solana Web3.js
+- Solana Wallet Adapter
 
 ## Learn More
 
