@@ -3,12 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { ClientWalletProvider } from "@/components/ClientWalletProvider";
+import { LosersLeaderboard } from "@/components/LosersLeaderboard";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "pumptge.fun - Track Your pump.fun Losses",
-  description: "Track and analyze your losses on pump.fun on the Solana blockchain",
+  description:
+    "Track and analyze your losses on pump.fun on the Solana blockchain",
 };
 
 export default function RootLayout({
@@ -21,6 +23,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ClientWalletProvider>
           {children}
+          <LosersLeaderboard />
         </ClientWalletProvider>
       </body>
     </html>

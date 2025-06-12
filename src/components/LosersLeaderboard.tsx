@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import type { WalletLoss } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import type { WalletLoss } from "@/lib/supabase";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const LosersLeaderboard = () => {
   const [topLosers, setTopLosers] = useState<WalletLoss[]>([]);
@@ -17,15 +17,15 @@ export const LosersLeaderboard = () => {
   const fetchTopLosers = async () => {
     try {
       const { data, error } = await supabase
-        .from('wallet_losses')
-        .select('*')
-        .order('total_losses', { ascending: false })
+        .from("wallet_losses")
+        .select("*")
+        .order("total_losses", { ascending: false })
         .limit(10);
 
       if (error) throw error;
       setTopLosers(data || []);
     } catch (error) {
-      console.error('Error fetching top losers:', error);
+      console.error("Error fetching top losers:", error);
     } finally {
       setLoading(false);
     }
@@ -48,8 +48,10 @@ export const LosersLeaderboard = () => {
       >
         <div className="flex items-center gap-2">
           <span className="text-xl">🏆</span>
-          <span className={`${isOpen ? 'rotate-180' : ''} transition-transform`}>
-            {isOpen ? '→' : '←'}
+          <span
+            className={`${isOpen ? "rotate-180" : ""} transition-transform`}
+          >
+            {isOpen ? "→" : "←"}
           </span>
         </div>
       </button>
@@ -58,10 +60,10 @@ export const LosersLeaderboard = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ x: '100%' }}
+            initial={{ x: "100%" }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 20 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 20 }}
             className="fixed right-0 top-0 h-screen w-full md:w-96 z-40 bg-black/95 backdrop-blur-xl shadow-2xl"
           >
             <div className="h-full overflow-y-auto pt-20 pb-8 px-4">
@@ -82,7 +84,11 @@ export const LosersLeaderboard = () => {
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors border border-white/5"
+                          className="p-4 bg-white/5 rounded-none hover:bg-white/10 transition-colors border border-white/5"
+                          style={{
+                            clipPath:
+                              "polygon(9.71% 0%, 36.86% 0%, 100% 0%, 100% 75.89%, 91.24% 100%, 0% 100%, 0% 75.89%, 0% 26.31%)",
+                          }}
                         >
                           <div className="flex items-center gap-3">
                             <div className="text-2xl font-bold text-purple-400 w-8">
@@ -118,4 +124,4 @@ export const LosersLeaderboard = () => {
       </AnimatePresence>
     </>
   );
-}; 
+};
