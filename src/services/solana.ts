@@ -1,23 +1,11 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
 
-// Helper function to get environment variables safely with fallbacks
-const getEnvVar = (key: string, fallback?: string): string => {
-  const value = process.env[key];
-  if (!value && !fallback) {
-    console.warn(`Missing environment variable: ${key}`);
-    return '';
-  }
-  return value || fallback || '';
-};
 
-// Get environment variables with fallbacks for build time
-const getPumpProgramId = (): string => {
-  return getEnvVar('NEXT_PUBLIC_PUMP_PROGRAM_ID', 'PFundRqyqxG9of8CdaBq7Vua18oJzz1RQFm5jH7Q8Z');
-};
+// pump.fun program ID (verified)
+const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 
-const getHeliusRpcEndpoint = (): string => {
-  return getEnvVar('NEXT_PUBLIC_HELIUS_RPC_ENDPOINT', 'https://api.mainnet-beta.solana.com');
-};
+// Using Helius RPC endpoint
+const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
@@ -106,7 +94,7 @@ const fetchWithRetry = async (
 };
 
 const createConnection = () => {
-  return new Connection(getHeliusRpcEndpoint(), connectionConfig);
+  return new Connection(HELIUS_RPC_ENDPOINT, connectionConfig);
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -132,7 +120,7 @@ const fetchWithTimeout = async <T>(
 const isPumpInstruction = (instruction: CompiledInstruction | MessageCompiledInstruction, accounts: PublicKey[]): boolean => {
   // Check if the program ID is the pump.fun program
   const programId = accounts[instruction.programIdIndex];
-  return programId && programId.toBase58() === getPumpProgramId();
+  return programId && programId.toBase58() === PUMP_PROGRAM_ID;
 };
 
 // Update the transaction processing logic
@@ -208,15 +196,6 @@ export const fetchPumpTransactions = async (
   onProgress?: (current: number, total: number) => void
 ): Promise<PumpTransaction[]> => {
   try {
-    // Get environment variables only when function is called
-    const PUMP_PROGRAM_ID = getPumpProgramId();
-    const HELIUS_RPC_ENDPOINT = getHeliusRpcEndpoint();
-    
-    // Check if we have valid environment variables
-    if (!PUMP_PROGRAM_ID || !HELIUS_RPC_ENDPOINT) {
-      throw new Error('Missing required environment variables for pump.fun integration');
-    }
-
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
