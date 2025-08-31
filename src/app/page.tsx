@@ -8,6 +8,7 @@ import { MemeProgressBar } from '@/components/MemeProgressBar';
 import { LosersLeaderboard } from '@/components/LosersLeaderboard';
 import { UserRankCard } from '@/components/UserRankCard';
 import { ClientWalletProvider } from '@/components/ClientWalletProvider';
+import { ShareModal } from '@/components/ShareModal';
 
 export default function Home() {
   const [searchAddress, setSearchAddress] = useState<string>('');
@@ -25,10 +26,18 @@ export default function Home() {
   const formatSOL = (amount: number) => {
     return `${amount.toFixed(2)} SOL`;
   };
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   return (
         <ClientWalletProvider>
     <main className="min-h-screen bg-gradient-to-b from-black to-purple-950">
+      <ShareModal
+  isOpen={isShareModalOpen}
+  onClose={() => setIsShareModalOpen(false)}
+  totalLosses={totalLosses}
+  biggestLoss={biggestLoss}
+  transactionCount={transactions.length}
+/>
       <Header />
       
       <div className="pt-32 pb-16 px-4">
@@ -79,6 +88,15 @@ export default function Home() {
                   rank={rankData?.rank ?? null}
                   totalParticipants={rankData?.totalParticipants ?? 0}
                 />
+                
+                <div className="md:col-span-4 flex justify-center">
+                  <button
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
+                  >
+                    Share on X
+                  </button>
+                </div>
               </div>
             )
           )}
