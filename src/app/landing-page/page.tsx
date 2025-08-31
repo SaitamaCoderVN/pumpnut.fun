@@ -149,12 +149,13 @@ const Html3 = () => {
         <div className="w-6 h-6 bg-white animate-ping rounded-full"></div>
       </div>
       <div className="h-svh">
-        <div className="absolute top-6 left-6 md:top-8 md:left-8 z-70 pointer-events-none">
+        <div className="absolute flex top-6 left-6 md:top-8 md:left-8 z-70 pointer-events-none items-center">
           <img 
             src="/devfun-logo3.png" 
             alt="DevFun Logo" 
-            className="w-8 h-8 md:w-12 md:h-12 object-contain"
+            className="w-8 h-8 md:w-12 md:h-12 object-contain mr-2"
           />
+          <span>pumpanalytics</span>
         </div>
         <div className="h-svh uppercase items-center w-full absolute z-60 pointer-events-none px-10 flex justify-center flex-col">
           <div
@@ -164,7 +165,7 @@ const Html3 = () => {
             }}
           >
             <div className="flex space-x-2 lg:space-x-6 overflow-hidden">
-              {'pumpanalytic'.split(' ').map((word, index) => {
+              {'pumpanalytics'.split(' ').map((word, index) => {
                 return (
                   <div data-title key={index} className="text-white">
                     {word}
@@ -179,11 +180,6 @@ const Html3 = () => {
               <div className="flex flex-col items-center space-y-4">
                 <div className="text-white/80">Scan any wallet's pump.fun losses</div>
                 <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-4">
-                  <input 
-                    type="text" 
-                    placeholder="Enter Solana address"
-                    className="w-full md:w-96 h-12 bg-white/5 backdrop-blur-sm border border-white/20 rounded-2xl px-6 py-3 focus:outline-none focus:border-[#2F0D64] transition-colors pointer-events-auto text-white placeholder-white/50"
-                  />
                   <a 
                     className="w-full md:w-auto relative h-12 px-8 rounded-lg overflow-hidden transition-all duration-500 group pointer-events-auto flex items-center justify-center" 
                     href="https://pumpnut-fun.vercel.app/"
@@ -212,7 +208,7 @@ const Html3 = () => {
                       <span 
                         className="text-lg font-normal bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(199,135,246,0.4)] tracking-tighter" 
                       > 
-                        Search
+                        Try $PUMPA
                       </span> 
                     </div> 
                     <div 

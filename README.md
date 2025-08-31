@@ -1,4 +1,4 @@
-# pumptge.fun
+# pumpanalytics
 
 A website that allows users to track their losses on pump.fun on the Solana blockchain. This project helps users visualize and understand their transaction history and performance on pump.fun.
 

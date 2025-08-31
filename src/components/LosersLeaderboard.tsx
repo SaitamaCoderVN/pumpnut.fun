@@ -16,16 +16,61 @@ export const LosersLeaderboard = () => {
 
   const fetchTopLosers = async () => {
     try {
+      console.log('=== DEBUGGING SUPABASE CONNECTION ===');
+      console.log('Supabase client:', supabase);
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log('Has anon key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      console.log('Anon key length:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length);
+      
+      // Test basic connection with timeout
+      console.log('Starting test query...');
+      const testPromise = supabase
+        .from('wallet_losses')
+        .select('count')
+        .limit(1);
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000)
+      );
+      
+      const result = await Promise.race([testPromise, timeoutPromise]);
+      const { data: testData, error: testError } = result;
+      
+      console.log('Test query completed:', { testData, testError });
+      
+      if (testError) {
+        console.error('Test query failed:', testError);
+        throw testError;
+      }
+      
+      console.log('Fetching top losers from Supabase...');
+      
       const { data, error } = await supabase
         .from('wallet_losses')
         .select('*')
         .order('total_losses', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+      
+      console.log('Top losers data:', data);
       setTopLosers(data || []);
     } catch (error) {
-      console.error('Error fetching top losers:', error);
+      console.error('Error fetching top losers:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        error: error,
+        errorType: error?.constructor?.name,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      });
     } finally {
       setLoading(false);
     }
