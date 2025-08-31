@@ -1,18 +1,22 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
 
-if (!process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID) {
-  throw new Error('Missing env.NEXT_PUBLIC_PUMP_PROGRAM_ID');
-}
+// Helper function to get environment variables safely
+const getEnvVar = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing environment variable: ${key}`);
+  }
+  return value;
+};
 
-if (!process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT) {
-  throw new Error('Missing env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT');
-}
+// Get environment variables only when needed
+const getPumpProgramId = (): string => {
+  return getEnvVar('NEXT_PUBLIC_PUMP_PROGRAM_ID');
+};
 
-// pump.fun program ID (verified)
-const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID;
-
-// Using Helius RPC endpoint
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT;
+const getHeliusRpcEndpoint = (): string => {
+  return getEnvVar('NEXT_PUBLIC_HELIUS_RPC_ENDPOINT');
+};
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
@@ -101,7 +105,7 @@ const fetchWithRetry = async (
 };
 
 const createConnection = () => {
-  return new Connection(HELIUS_RPC_ENDPOINT, connectionConfig);
+  return new Connection(getHeliusRpcEndpoint(), connectionConfig);
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -127,7 +131,7 @@ const fetchWithTimeout = async <T>(
 const isPumpInstruction = (instruction: CompiledInstruction | MessageCompiledInstruction, accounts: PublicKey[]): boolean => {
   // Check if the program ID is the pump.fun program
   const programId = accounts[instruction.programIdIndex];
-  return programId && programId.toBase58() === PUMP_PROGRAM_ID;
+  return programId && programId.toBase58() === getPumpProgramId();
 };
 
 // Update the transaction processing logic
@@ -269,7 +273,7 @@ export const fetchPumpTransactions = async (
 
             // Check for pump.fun program ID in any of the accounts
             const isPumpTransaction = accounts.some(account => 
-              account.toBase58() === PUMP_PROGRAM_ID
+              account.toBase58() === getPumpProgramId()
             );
 
             if (!isPumpTransaction) {
