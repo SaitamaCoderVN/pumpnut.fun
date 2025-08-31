@@ -5,7 +5,7 @@ import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledIn
 const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 
 // Thay đổi endpoint RPC
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://mainnet.helius-rpc.com/?api-key=d535999d-be82-433e-9ab3-861a5da950bc';
+const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
