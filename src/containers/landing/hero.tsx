@@ -1,62 +1,11 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Rocket,
-  TrendingUp,
-  ShieldAlert,
-  Zap,
-  DollarSign,
-  Brain,
-  Ghost,
-  Sparkles,
-  AlertTriangle,
-  PartyPopper,
-  Bomb,
-  CloudLightning,
-  Dice5,
-  Flame,
-  Gift,
-  HeartCrack,
-  HelpCircle,
-  Laugh,
-  Moon,
-  PawPrintIcon as Poo,
-  Skull,
-  Snail,
-  SprayCan,
-  Squirrel,
-  ToyBrick,
-  Trash2,
-  Turtle,
-  Wallet,
-  Wand2,
-  Waves,
-  Wind,
-  Cat,
-  Dog,
-  Bird,
-  Fish,
-  Bug,
-  Pizza,
-  Gem,
-} from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { LosersLeaderboard } from "@/components/LosersLeaderboard";
 import { usePumpTransactions } from "@/hooks/usePumpTransactions";
 import { useState } from "react";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MemeProgressBar } from "@/components/MemeProgressBar";
 import { UserRankCard } from "@/components/UserRankCard";
+import { ShareButton } from "@/components/ShareButton";
 
 export default function ObnoxiousLandingPage() {
   const [searchAddress, setSearchAddress] = useState<string>("");
@@ -141,9 +90,19 @@ export default function ObnoxiousLandingPage() {
 
               {!isLoading && searchAddress && transactions.length > 0 && (
                 <div className="mt-8">
-                  <h2 className="text-2xl font-bold text-white mb-6">
-                    Recent Transactions
-                  </h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-white">
+                      Recent Transactions
+                    </h2>
+                    <ShareButton
+                      walletAddress={searchAddress.split('?')[0]}
+                      totalLosses={totalLosses}
+                      totalTransactions={transactions.length}
+                      biggestLoss={biggestLoss}
+                      rank={rankData?.rank}
+                      totalParticipants={rankData?.totalParticipants}
+                    />
+                  </div>
                   <div className="overflow-x-auto bg-white/5 backdrop-blur-lg rounded-xl border border-white/10">
                     <table className="w-full">
                       <thead>

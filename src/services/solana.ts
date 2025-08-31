@@ -208,7 +208,7 @@ export const fetchPumpTransactions = async (
 
     const allSignatures = await conn.getSignaturesForAddress(
       pubKey,
-      { limit: 100 },
+      { limit: Number(process.env.NEXT_PUBLIC_MAX_TRANSACTIONS) || 1000 },
       'confirmed'
     );
 
