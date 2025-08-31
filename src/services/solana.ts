@@ -1,21 +1,22 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
 
-// Helper function to get environment variables safely
-const getEnvVar = (key: string): string => {
+// Helper function to get environment variables safely with fallbacks
+const getEnvVar = (key: string, fallback?: string): string => {
   const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing environment variable: ${key}`);
+  if (!value && !fallback) {
+    console.warn(`Missing environment variable: ${key}`);
+    return '';
   }
-  return value;
+  return value || fallback || '';
 };
 
-// Get environment variables only when needed
+// Get environment variables with fallbacks for build time
 const getPumpProgramId = (): string => {
-  return getEnvVar('NEXT_PUBLIC_PUMP_PROGRAM_ID');
+  return getEnvVar('NEXT_PUBLIC_PUMP_PROGRAM_ID', 'PFundRqyqxG9of8CdaBq7Vua18oJzz1RQFm5jH7Q8Z');
 };
 
 const getHeliusRpcEndpoint = (): string => {
-  return getEnvVar('NEXT_PUBLIC_HELIUS_RPC_ENDPOINT');
+  return getEnvVar('NEXT_PUBLIC_HELIUS_RPC_ENDPOINT', 'https://api.mainnet-beta.solana.com');
 };
 
 // Connection configuration
@@ -207,6 +208,15 @@ export const fetchPumpTransactions = async (
   onProgress?: (current: number, total: number) => void
 ): Promise<PumpTransaction[]> => {
   try {
+    // Get environment variables only when function is called
+    const PUMP_PROGRAM_ID = getPumpProgramId();
+    const HELIUS_RPC_ENDPOINT = getHeliusRpcEndpoint();
+    
+    // Check if we have valid environment variables
+    if (!PUMP_PROGRAM_ID || !HELIUS_RPC_ENDPOINT) {
+      throw new Error('Missing required environment variables for pump.fun integration');
+    }
+
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
@@ -273,7 +283,7 @@ export const fetchPumpTransactions = async (
 
             // Check for pump.fun program ID in any of the accounts
             const isPumpTransaction = accounts.some(account => 
-              account.toBase58() === getPumpProgramId()
+              account.toBase58() === PUMP_PROGRAM_ID
             );
 
             if (!isPumpTransaction) {

@@ -80,8 +80,12 @@ export default function Home() {
               >
                 Track any wallet's pump.fun losses
               </h1>
-              <p className="text-lg md:text-xl xl:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl xl:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed mb-4">
                 Scan any Solana address to see their pump.fun losses! 🎰
+              </p>
+              {/* Thêm dòng chữ mới về airdrop */}
+              <p className="text-base md:text-lg text-purple-300/80 max-w-2xl mx-auto leading-relaxed">
+                Check your wallet and share your results on twitter to qualify for airdrop ✨
               </p>
             </div>
 
