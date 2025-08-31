@@ -4,8 +4,8 @@ import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledIn
 // pump.fun program ID (verified)
 const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
 
-// Using Helius RPC endpoint
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
+// Thay đổi endpoint RPC
+const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://mainnet.helius-rpc.com/?api-key=d535999d-be82-433e-9ab3-861a5da950bc';
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
@@ -52,7 +52,7 @@ class TokenBucket {
 }
 
 // Create rate limiter instance (5 requests per second)
-const rateLimiter = new TokenBucket(3, 0.5); // 3 tokens, refill rate of 0.5 per second (more conservative)
+const rateLimiter = new TokenBucket(2, 0.3); // Giảm xuống 2 tokens, 0.3 requests/second
 
 export interface PumpTransaction {
   signature: string;
@@ -196,6 +196,11 @@ export const fetchPumpTransactions = async (
   onProgress?: (current: number, total: number) => void
 ): Promise<PumpTransaction[]> => {
   try {
+    // Validate RPC endpoint
+    if (HELIUS_RPC_ENDPOINT.includes('api.mainnet-beta.solana.com')) {
+      throw new Error('Please use a dedicated RPC endpoint (Helius, QuickNode, Alchemy) for production');
+    }
+
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
