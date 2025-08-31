@@ -4,6 +4,7 @@ import type { PumpTransaction } from '@/services/solana';
 export interface UserRankData {
   rank: number;
   totalParticipants: number;
+  referralCode?: string;
 }
 
 // Thêm interface cho referral
@@ -47,6 +48,24 @@ export const updateWalletLosses = async (
       };
     }
 
+    // Generate referral code if it doesn't exist
+    let referralCode = walletAddress.slice(0, 8); // Use first 8 characters as default
+
+    // Check if user already exists and has a referral code
+    const { data: existingUser, error: selectError } = await supabase
+      .from('wallet_losses')
+      .select('referral_code')
+      .eq('wallet_address', walletAddress)
+      .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.warn('Error checking existing user:', selectError);
+    }
+
+    if (existingUser?.referral_code) {
+      referralCode = existingUser.referral_code;
+    }
+
     // First, update or insert the user's data
     const { error: upsertError } = await supabase
       .from('wallet_losses')
@@ -57,6 +76,7 @@ export const updateWalletLosses = async (
           total_transactions: transactions.length,
           biggest_loss: biggestLoss,
           last_updated: new Date().toISOString(),
+          referral_code: referralCode,
         },
         {
           onConflict: 'wallet_address',
@@ -96,13 +116,15 @@ export const updateWalletLosses = async (
       console.warn('Count query failed, using fallback:', countError);
       return {
         rank: rankData?.[0]?.rank || 1,
-        totalParticipants: 1
+        totalParticipants: 1,
+        referralCode: referralCode
       };
     }
 
     return {
       rank: rankData?.[0]?.rank || 1,
-      totalParticipants: count || 1
+      totalParticipants: count || 1,
+      referralCode: referralCode
     };
   } catch (error) {
     console.error('Error updating wallet losses:', {
@@ -117,7 +139,8 @@ export const updateWalletLosses = async (
     // Return fallback data instead of throwing
     return {
       rank: 1,
-      totalParticipants: 1
+      totalParticipants: 1,
+      referralCode: walletAddress.slice(0, 8)
     };
   }
 }; 
@@ -171,13 +194,10 @@ export const getOrCreateReferralCode = async (walletAddress: string): Promise<st
 
 export const getReferralData = async (walletAddress: string): Promise<ReferralData | null> => {
   try {
+    // Get referral code from wallet_losses table
     const { data, error } = await supabase
-      .from('referral_codes')
-      .select(`
-        referral_code,
-        total_referrals,
-        total_referral_losses
-      `)
+      .from('wallet_losses')
+      .select('referral_code')
       .eq('wallet_address', walletAddress)
       .single();
 
@@ -186,52 +206,55 @@ export const getReferralData = async (walletAddress: string): Promise<ReferralDa
       throw error;
     }
 
-    // Get pending rewards
-    const { data: rewards, error: rewardsError } = await supabase
-      .from('referral_rewards')
-      .select('reward_amount')
-      .eq('referrer_wallet', walletAddress)
-      .eq('status', 'pending');
-
-    if (rewardsError) {
-      throw rewardsError;
+    if (!data?.referral_code) {
+      return null;
     }
 
-    const pendingRewards = rewards.reduce((sum, reward) => sum + reward.reward_amount, 0);
+    // Count referrals
+    const { count: totalReferrals } = await supabase
+      .from('wallet_losses')
+      .select('*', { count: 'exact', head: true })
+      .eq('referred_by', data.referral_code);
+
+    // Sum total referral losses
+    const { data: referralLossesData } = await supabase
+      .from('wallet_losses')
+      .select('total_losses')
+      .eq('referred_by', data.referral_code);
+
+    const totalReferralLosses = referralLossesData?.reduce((sum, item) => sum + Number(item.total_losses), 0) || 0;
 
     return {
       referralCode: data.referral_code,
-      totalReferrals: data.total_referrals,
-      totalReferralLosses: data.total_referral_losses,
-      pendingRewards
+      totalReferrals: totalReferrals || 0,
+      totalReferralLosses: totalReferralLosses,
+      pendingRewards: totalReferralLosses * 0.05 // 5% of referral losses as pending rewards
     };
   } catch (error) {
     console.error('Error getting referral data:', error);
-    throw error;
+    return null; // Return null instead of throwing to avoid breaking the UI
   }
 };
 
 export const processReferral = async (
-  referrerWallet: string,
+  referrerCode: string,
   referredWallet: string,
-  referralCode: string,
   totalLosses: number
 ): Promise<void> => {
   try {
+    // Update the referred wallet to mark who referred them
     const { error } = await supabase
-      .rpc('process_referral', {
-        referrer_wallet: referrerWallet,
-        referred_wallet: referredWallet,
-        referral_code: referralCode,
-        total_losses: totalLosses
-      });
+      .from('wallet_losses')
+      .update({ referred_by: referrerCode })
+      .eq('wallet_address', referredWallet);
 
     if (error) {
-      throw error;
+      console.warn('Error processing referral:', error);
+      // Don't throw error to avoid breaking the main flow
     }
   } catch (error) {
     console.error('Error processing referral:', error);
-    throw error;
+    // Don't throw error to avoid breaking the main flow
   }
 };
 

@@ -65,7 +65,7 @@ export default function Home() {
           totalLosses={totalLosses}
           biggestLoss={biggestLoss}
           transactionCount={transactions.length}
-          referralCode={referralData?.referralCode}
+          referralCode={rankData?.referralCode || referralData?.referralCode}
         />
 
         {/* Header with Leaderboard button */}
@@ -155,9 +155,9 @@ export default function Home() {
                   <p className="text-white/70 text-sm">
                     💎 You'll receive 5% extra token airdrop from people who use your referral link!
                   </p>
-                  {referralData && (
+                  {(rankData?.referralCode || referralData?.referralCode) && (
                     <p className="text-white/60 text-xs mt-1">
-                      Referral Code: <span className="font-mono font-medium text-purple-300">{referralData.referralCode}</span>
+                      Referral Code: <span className="font-mono font-medium text-purple-300">{rankData?.referralCode || referralData?.referralCode}</span>
                     </p>
                   )}
                 </div>

@@ -83,7 +83,7 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
         // Process referral if referral code exists
         if (refCode && refCode !== searchAddress) {
           try {
-            await processReferral(refCode, searchAddress, refCode, totalLoss);
+            await processReferral(refCode, searchAddress, totalLoss);
             console.log('Referral processed successfully');
           } catch (refError) {
             console.warn('Referral processing failed:', refError);

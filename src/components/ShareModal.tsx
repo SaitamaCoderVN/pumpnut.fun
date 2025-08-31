@@ -154,10 +154,9 @@ export const ShareModal = ({
       // Create file from blob
       const file = new File([blob], 'pump-fun-loss-report.png', { type: 'image/png' });
 
-      // Create referral link if referral code exists
-      const referralLink = referralCode 
-        ? `https://pumpanalytics.xyz?ref=${referralCode}`
-        : 'https://pumpanalytics.xyz';
+      // Always create referral link - use referral code if available, otherwise use a default
+      const finalReferralCode = referralCode || 'default';
+      const referralLink = `https://pumpanalytics.xyz?ref=${finalReferralCode}`;
 
       // Share on Twitter with referral link
       const shareText = referralCode 
