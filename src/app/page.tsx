@@ -8,6 +8,7 @@ import { MemeProgressBar } from '@/components/MemeProgressBar';
 import { LosersLeaderboard } from '@/components/LosersLeaderboard';
 import { UserRankCard } from '@/components/UserRankCard';
 import { ClientWalletProvider } from '@/components/ClientWalletProvider';
+import { ShareModal } from '@/components/ShareModal';
 import { Tomorrow } from 'next/font/google';
 
 const tomorrow = Tomorrow({
@@ -28,18 +29,27 @@ export default function Home() {
     rankData
   } = usePumpTransactions(searchAddress);
 
-  const formatSOL = (amount: number) => {
-    return `${amount.toFixed(2)} SOL`;
-  };
+  const formatSOL = (amount: number) => `${amount.toFixed(2)} SOL`;
+
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   return (
     <ClientWalletProvider>
       <main className="min-h-screen bg-cover bg-center bg-no-repeat relative" style={{ backgroundImage: 'url(/raw-4.png)' }}>
         {/* Gradient overlay for better text readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/40 pointer-events-none"></div>
-        
+
+        {/* Share modal */}
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          totalLosses={totalLosses}
+          biggestLoss={biggestLoss}
+          transactionCount={transactions.length}
+        />
+
         <Header />
-        
+
         <div className="relative z-10 pt-32 pb-16 px-4">
           <div className="container mx-auto">
             <div className="text-center mb-16">
@@ -62,6 +72,14 @@ export default function Home() {
                   currentBatch={currentBatch || 0} 
                   totalBatches={totalBatches || 0}
                 />
+                <div className="md:col-span-4 flex justify-center mt-6">
+                  <button
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
+                  >
+                    Share on X
+                  </button>
+                </div>
               </div>
             ) : (
               searchAddress && (
