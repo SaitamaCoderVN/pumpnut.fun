@@ -6,7 +6,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "pumptge.fun - Track Your pump.fun Losses",
+  title: "pumpanalytics - Track Your pump.fun Losses",
   description: "Track and analyze your losses on pump.fun on the Solana blockchain",
 };
 

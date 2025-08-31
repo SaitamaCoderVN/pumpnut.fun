@@ -33,6 +33,8 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     setTotalBatches(0);
 
     try {
+      console.log('Fetching transactions for address:', searchAddress);
+      
       const txs = await fetchPumpTransactions(
         connection, 
         searchAddress,
@@ -43,6 +45,7 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
         }
       );
       
+      console.log('Fetched transactions:', txs.length);
       setTransactions(txs);
       
       if (txs.length > 0) {
@@ -52,23 +55,41 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
           tx.type === 'bet' && tx.success && tx.amount > max ? tx.amount : max, 0
         );
 
-        // Update database and get rank
-        const userRankData = await updateWalletLosses(
-          searchAddress,
-          txs,
-          totalLoss,
-          biggestLoss
-        );
-        setRankData(userRankData);
+        console.log('Calculated losses:', { totalLoss, biggestLoss });
+
+        // Update database and get rank (with error handling)
+        try {
+          const userRankData = await updateWalletLosses(
+            searchAddress,
+            txs,
+            totalLoss,
+            biggestLoss
+          );
+          console.log('Rank data received:', userRankData);
+          setRankData(userRankData);
+        } catch (dbError) {
+          console.warn('Database update failed, continuing without rank:', dbError);
+          // Set fallback rank data
+          setRankData({
+            rank: 1,
+            totalParticipants: 1
+          });
+        }
       } else {
         setError('No transactions found for this address on pump.fun');
       }
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      console.error('Error fetching transactions:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        error: err,
+        errorType: err?.constructor?.name,
+        searchAddress
+      });
+      
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('An unexpected error occurred');
+        setError('An unexpected error occurred while fetching transactions');
       }
     } finally {
       setIsLoading(false);
