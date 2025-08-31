@@ -9,9 +9,17 @@ interface ShareModalProps {
   totalLosses: number;
   biggestLoss: number;
   transactionCount: number;
+  referralCode?: string; // Thêm referral code prop
 }
 
-export const ShareModal = ({ isOpen, onClose, totalLosses, biggestLoss, transactionCount }: ShareModalProps) => {
+export const ShareModal = ({ 
+  isOpen, 
+  onClose, 
+  totalLosses, 
+  biggestLoss, 
+  transactionCount,
+  referralCode 
+}: ShareModalProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
@@ -37,7 +45,7 @@ export const ShareModal = ({ isOpen, onClose, totalLosses, biggestLoss, transact
       ctx.fillStyle = 'white';
       
       // Left side - PUMPANALYTICS (vertically aligned with -90 degree rotated letters)
-      const text = 'CITYLANAPMUP'.split('').reverse().join(''); // Reverse the text for correct reading order
+      const text = 'SCITYLANAPMUP'.split('').reverse().join(''); // Reverse the text for correct reading order
       ctx.textAlign = 'center';
       ctx.font = 'bold 48px Inter';
       const startY = 540; // Start from bottom
@@ -116,7 +124,8 @@ export const ShareModal = ({ isOpen, onClose, totalLosses, biggestLoss, transact
       // Add website URL
       ctx.font = '20px Inter';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.fillText('pumpanalytic.com', canvas.width/2, canvas.height - 40);
+      ctx.font = 'bold 20px Inter';
+      ctx.fillText('pumpanalytics.xyz', canvas.width/2, canvas.height - 40);
 
       // Convert canvas to data URL
       const dataUrl = canvas.toDataURL('image/png');
@@ -145,10 +154,17 @@ export const ShareModal = ({ isOpen, onClose, totalLosses, biggestLoss, transact
       // Create file from blob
       const file = new File([blob], 'pump-fun-loss-report.png', { type: 'image/png' });
 
-      // Share on Twitter with image
-      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-        `Just lost ${totalLosses.toFixed(2)} SOL on pump.fun! 🎰\n\nCheck your losses at pumpanalytic.com`
-      )}`;
+      // Create referral link if referral code exists
+      const referralLink = referralCode 
+        ? `https://pumpanalytics.xyz?ref=${referralCode}`
+        : 'https://pumpanalytics.xyz';
+
+      // Share on Twitter with referral link
+      const shareText = referralCode 
+        ? `Just lost ${totalLosses.toFixed(2)} SOL on pump.fun! 🎰\n\nCheck your losses at ${referralLink}\n\nUse my referral link to get extra rewards! 🚀`
+        : `Just lost ${totalLosses.toFixed(2)} SOL on pump.fun! 🎰\n\nCheck your losses at ${referralLink}`;
+
+      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
       window.open(shareUrl, '_blank');
     } catch (error) {
       console.error('Error sharing image:', error);
@@ -174,6 +190,21 @@ export const ShareModal = ({ isOpen, onClose, totalLosses, biggestLoss, transact
                 ✕
               </button>
             </div>
+            
+            {/* Referral Info Section */}
+            {referralCode && (
+              <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-400/30">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-white mb-2">🎁 Referral Bonus Active!</h3>
+                  <p className="text-white/80 text-sm mb-3">
+                    Your referral code: <span className="font-mono font-bold text-purple-300">{referralCode}</span>
+                  </p>
+                  <p className="text-white/70 text-xs">
+                    You'll receive 5% extra token airdrop from people who use your referral link!
+                  </p>
+                </div>
+              </div>
+            )}
             
             <div className="relative aspect-[1200/630] w-full overflow-hidden rounded-lg mb-6">
               <canvas

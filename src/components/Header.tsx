@@ -1,41 +1,58 @@
 'use client';
 
-import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { Tomorrow } from 'next/font/google';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import Image from 'next/image';
 
-const tomorrow = Tomorrow({
-  weight: '600',
-  subsets: ['latin'],
-});
+interface HeaderProps {
+  onLeaderboardToggle: () => void;
+}
 
-const WalletMultiButtonDynamic = dynamic(
-  async () => (await import('@solana/wallet-adapter-react-ui')).WalletMultiButton,
-  { ssr: false }
-);
+export const Header = ({ onLeaderboardToggle }: HeaderProps) => {
+  const { connected } = useWallet();
 
-export const Header = () => {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-black/90 via-black/80 to-black/90 backdrop-blur-xl border-b border-white/20 shadow-2xl">
-      <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-        <Link 
-          href="/" 
-          className="flex items-center hover:opacity-80 transition-all duration-300 group"
-        >
-          <img 
-            src="/devfun-logo3.png" 
-            alt="DevFun Logo" 
-            className="h-10 w-auto mr-3 group-hover:scale-105 transition-transform duration-300"
-          />
-          <span 
-            className="text-xl font-semibold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent"
-            style={tomorrow.style}
-          >
-            pumpanalytics
-          </span>
-        </Link>
-        
-        <WalletMultiButtonDynamic className="!bg-gradient-to-r from-[#654358] to-[#2F0D64] hover:!from-[#2F0D64] hover:!to-[#654358] !border !border-white/20 !rounded-xl !px-6 !py-3 !text-white !font-medium !transition-all !duration-300 !shadow-2xl" />
+    <header className="fixed top-0 left-0 right-0 z-50 bg-purple-900/10 backdrop-blur-xl border-b border-purple-800/20">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          {/* Logo and X Logo */}
+          <div className="flex items-center gap-3">
+            <img src="/devfun-logo3.png" alt="Logo" className="h-8 w-auto" />
+            <span className="text-white font-bold text-lg">PumpAnalytics</span>
+            {/* X Logo - chỉ thêm logo X màu trắng */}
+            <a 
+              href="https://x.com/pump_analytics" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="ml-2 hover:opacity-80 transition-opacity"
+            >
+              <Image
+                src="/logo-white.png"
+                alt="X Logo"
+                width={20}
+                height={20}
+                className="h-5 w-auto"
+              />
+            </a>
+          </div>
+
+          {/* Right side buttons */}
+          <div className="flex items-center gap-3">
+            {/* Leaderboard Button */}
+            <button
+              onClick={onLeaderboardToggle}
+              className="bg-purple-600/60 hover:bg-purple-700/70 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 backdrop-blur-sm border border-purple-400/20"
+            >
+              <span className="text-lg">🏆</span>
+              Leaderboard
+            </button>
+
+            {/* Connect Wallet Button */}
+            <WalletMultiButton className="bg-blue-600/60 hover:bg-blue-700/70 text-white px-4 py-2 rounded-lg font-medium transition-colors backdrop-blur-sm border border-blue-400/20" />
+          </div>
+        </div>
       </div>
     </header>
   );

@@ -1,7 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { Tomorrow } from 'next/font/google';
+
+const tomorrow = Tomorrow({
+  weight: '600',
+  subsets: ['latin'],
+});
 
 interface MemeProgressBarProps {
   currentBatch: number;
@@ -9,102 +14,103 @@ interface MemeProgressBarProps {
 }
 
 export const MemeProgressBar = ({ currentBatch, totalBatches }: MemeProgressBarProps) => {
-  const [internalProgress, setInternalProgress] = useState(0);
+  const progress = (currentBatch / totalBatches) * 100;
   
-  // Calculate actual progress percentage
-  const actualProgress = totalBatches > 0 
-    ? Math.round((currentBatch / totalBatches) * 100) 
-    : 0;
-
-  // Log progress values for debugging
-  console.log('Progress values:', { currentBatch, totalBatches, actualProgress });
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setInternalProgress(prev => {
-        if (prev < actualProgress) {
-          return Math.min(prev + 1, actualProgress);
-        }
-        return prev;
-      });
-    }, 50);
-
-    return () => clearInterval(timer);
-  }, [actualProgress]);
-
-  const getColor = () => {
-    if (internalProgress < 33) return 'rgb(34, 197, 94)'; // Green
-    if (internalProgress < 66) return 'rgb(234, 179, 8)'; // Yellow
-    return 'rgb(239, 68, 68)'; // Red
-  };
-
-  const getMessage = () => {
-    if (internalProgress < 33) return 'Hopium Stage';
-    if (internalProgress < 66) return 'Copium Stage';
-    return 'Reality Stage';
-  };
+  // Determine stage based on progress
+  let stage = '';
+  let emoji = '';
+  let painLevel = 0;
+  
+  if (progress < 25) {
+    stage = 'Copium Stage';
+    emoji = '💸';
+  } else if (progress < 50) {
+    stage = 'Hopium';
+    emoji = '🚀';
+  } else if (progress < 75) {
+    stage = 'Reality';
+    emoji = '😐';
+  } else {
+    stage = 'Pain';
+    emoji = '😭';
+  }
+  
+  painLevel = Math.round(progress);
 
   return (
-    <div className="w-[70%] mx-auto">
-      {/* Title */}
+    <div className="max-w-4xl mx-auto p-8 rounded-2xl border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
+      {/* Stage Display */}
       <div className="text-center mb-6">
-        <motion.div
-          className="text-2xl font-bold mb-2"
-          style={{ color: getColor() }}
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
+        <h2 
+          className="text-3xl md:text-4xl font-bold text-white mb-2"
+          style={tomorrow.style}
         >
-          {getMessage()} 💸
-        </motion.div>
-        <div className="text-lg font-mono text-gray-400">
+          {stage} {emoji}
+        </h2>
+        <p 
+          className="text-lg md:text-xl text-white/80"
+          style={tomorrow.style}
+        >
           Processing batch {currentBatch}/{totalBatches}
-        </div>
+        </p>
       </div>
 
       {/* Progress Bar */}
-      <div className="h-8 bg-gray-800 rounded-lg overflow-hidden">
-        <motion.div
-          className="h-full transition-colors duration-1000 relative"
-          style={{
-            width: `${internalProgress}%`,
-            backgroundColor: getColor(),
-          }}
-        >
-          {/* Spark effect */}
+      <div className="mb-6">
+        <div className="w-full bg-white/20 rounded-full h-4 overflow-hidden">
           <motion.div
-            className="absolute right-0 top-0 h-full w-4"
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [1, 1.5, 1],
-            }}
-            transition={{
-              duration: 0.5,
-              repeat: Infinity,
-            }}
-          >
-            <div className="h-full w-full bg-white/50 blur-sm" />
-          </motion.div>
-        </motion.div>
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          />
+        </div>
       </div>
 
-      {/* Stage indicators */}
-      <div className="flex justify-between mt-2 text-sm font-mono">
-        <span className={internalProgress < 33 ? 'text-green-500 font-bold' : 'text-green-500/50'}>
-          Hopium
-        </span>
-        <span className={internalProgress >= 33 && internalProgress < 66 ? 'text-yellow-500 font-bold' : 'text-yellow-500/50'}>
-          Copium
-        </span>
-        <span className={internalProgress >= 66 ? 'text-red-500 font-bold' : 'text-red-500/50'}>
-          Reality
-        </span>
+      {/* Stage Indicators */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="text-center">
+          <div 
+            className={`text-sm font-medium ${progress >= 0 ? 'text-purple-400' : 'text-white/40'}`}
+            style={tomorrow.style}
+          >
+            Copium
+          </div>
+        </div>
+        <div className="text-center">
+          <div 
+            className={`text-sm font-medium ${progress >= 25 ? 'text-purple-400' : 'text-white/40'}`}
+            style={tomorrow.style}
+          >
+            Hopium
+          </div>
+        </div>
+        <div className="text-center">
+          <div 
+            className={`text-sm font-medium ${progress >= 50 ? 'text-purple-400' : 'text-white/40'}`}
+            style={tomorrow.style}
+          >
+            Reality
+          </div>
+        </div>
+        <div className="text-center">
+          <div 
+            className={`text-sm font-medium ${progress >= 75 ? 'text-purple-400' : 'text-white/40'}`}
+            style={tomorrow.style}
+          >
+            Pain
+          </div>
+        </div>
       </div>
 
       {/* Pain Level */}
-      <div className="text-center mt-4">
-        <span className="text-red-500 font-mono">
-          Pain Level: {internalProgress}%
-        </span>
+      <div className="text-center">
+        <div 
+          className="text-lg md:text-xl font-bold text-red-400"
+          style={tomorrow.style}
+        >
+          Pain Level: {painLevel}%
+        </div>
       </div>
     </div>
   );

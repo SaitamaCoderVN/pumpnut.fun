@@ -1,7 +1,7 @@
 import { useConnection } from '@solana/wallet-adapter-react';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchPumpTransactions, PumpTransaction, calculateTotalLosses } from '@/services/solana';
-import { updateWalletLosses, UserRankData } from '@/services/database';
+import { updateWalletLosses, UserRankData, getReferralData, ReferralData, processReferral } from '@/services/database';
 
 export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
   const { connection } = useConnection();
@@ -23,8 +23,12 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
       return;
     }
 
-    // Extract the actual address from the timestamp-appended string
+    // Extract the actual address and check for referral code
     const searchAddress = searchAddressWithTimestamp.split('?')[0];
+    
+    // Check URL for referral code
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
 
     setIsLoading(true);
     setError(null);
@@ -75,6 +79,18 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
             totalParticipants: 1
           });
         }
+
+        // Process referral if referral code exists
+        if (refCode && refCode !== searchAddress) {
+          try {
+            await processReferral(refCode, searchAddress, refCode, totalLoss);
+            console.log('Referral processed successfully');
+          } catch (refError) {
+            console.warn('Referral processing failed:', refError);
+            // Continue without referral processing
+          }
+        }
+
       } else {
         setError('No transactions found for this address on pump.fun');
       }

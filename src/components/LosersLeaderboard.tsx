@@ -5,44 +5,33 @@ import { supabase } from '@/lib/supabase';
 import type { WalletLoss } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const LosersLeaderboard = () => {
+interface ReferralStats {
+  wallet_address: string;
+  total_referrals: number;
+  total_referral_losses: number;
+  pending_rewards: number;
+}
+
+interface LosersLeaderboardProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const LosersLeaderboard = ({ isOpen, onClose }: LosersLeaderboardProps) => {
   const [topLosers, setTopLosers] = useState<WalletLoss[]>([]);
+  const [topReferrers, setTopReferrers] = useState<ReferralStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'losers' | 'referrers'>('losers');
 
   useEffect(() => {
-    fetchTopLosers();
-  }, []);
+    if (isOpen) {
+      fetchTopLosers();
+      fetchTopReferrers();
+    }
+  }, [isOpen]);
 
   const fetchTopLosers = async () => {
     try {
-      console.log('=== DEBUGGING SUPABASE CONNECTION ===');
-      console.log('Supabase client:', supabase);
-      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-      console.log('Has anon key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-      console.log('Anon key length:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length);
-      
-      // Test basic connection with timeout
-      console.log('Starting test query...');
-      const testPromise = supabase
-        .from('wallet_losses')
-        .select('count')
-        .limit(1);
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000)
-      );
-      
-      const result = await Promise.race([testPromise, timeoutPromise]);
-      const { data: testData, error: testError } = result;
-      
-      console.log('Test query completed:', { testData, testError });
-      
-      if (testError) {
-        console.error('Test query failed:', testError);
-        throw testError;
-      }
-      
       console.log('Fetching top losers from Supabase...');
       
       const { data, error } = await supabase
@@ -64,13 +53,58 @@ export const LosersLeaderboard = () => {
       console.log('Top losers data:', data);
       setTopLosers(data || []);
     } catch (error) {
-      console.error('Error fetching top losers:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        error: error,
-        errorType: error?.constructor?.name,
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      });
+      console.error('Error fetching top losers:', error);
+    }
+  };
+
+  const fetchTopReferrers = async () => {
+    try {
+      console.log('Fetching top referrers from Supabase...');
+      
+      const { data, error } = await supabase
+        .from('referral_codes')
+        .select(`
+          wallet_address,
+          total_referrals,
+          total_referral_losses
+        `)
+        .order('total_referrals', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching top referrers:', error);
+        return;
+      }
+
+      // Calculate pending rewards for each referrer
+      const referrersWithRewards = await Promise.all(
+        (data || []).map(async (referrer) => {
+          const { data: rewards, error: rewardsError } = await supabase
+            .from('referral_rewards')
+            .select('reward_amount')
+            .eq('referrer_wallet', referrer.wallet_address)
+            .eq('status', 'pending');
+
+          if (rewardsError) {
+            console.warn('Error fetching rewards for', referrer.wallet_address, rewardsError);
+            return {
+              ...referrer,
+              pending_rewards: 0
+            };
+          }
+
+          const pendingRewards = rewards.reduce((sum, reward) => sum + reward.reward_amount, 0);
+          return {
+            ...referrer,
+            pending_rewards: pendingRewards
+          };
+        })
+      );
+
+      console.log('Top referrers data:', referrersWithRewards);
+      setTopReferrers(referrersWithRewards);
+    } catch (error) {
+      console.error('Error fetching top referrers:', error);
     } finally {
       setLoading(false);
     }
@@ -85,82 +119,158 @@ export const LosersLeaderboard = () => {
   };
 
   return (
-    <>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-purple-600 text-white p-3 rounded-l-lg shadow-lg hover:bg-purple-700 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🏆</span>
-          <span className={`${isOpen ? 'rotate-180' : ''} transition-transform`}>
-            {isOpen ? '→' : '←'}
-          </span>
-        </div>
-      </button>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 20 }}
+          className="fixed right-0 top-0 h-screen w-full md:w-96 z-40"
+        >
+          {/* Semi-transparent background with purple tint - more transparent */}
+          <div className="absolute inset-0 bg-purple-900/20 backdrop-blur-xl"></div>
+          
+          {/* Content container with better spacing */}
+          <div className="relative h-full overflow-y-auto pt-24 pb-8 px-6">
+            <div className="bg-purple-900/10 backdrop-blur-lg rounded-xl border border-purple-400/20 shadow-2xl">
+              {/* Header with close button */}
+              <div className="flex items-center justify-between p-4 border-b border-purple-400/15 bg-purple-800/20 rounded-t-xl">
+                <h2 className="text-xl font-bold text-white">🏆 Leaderboard</h2>
+                <button
+                  onClick={onClose}
+                  className="text-white/80 hover:text-white transition-colors text-2xl hover:bg-purple-600/20 p-1 rounded-full"
+                >
+                  ✕
+                </button>
+              </div>
 
-      {/* Leaderboard Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 20 }}
-            className="fixed right-0 top-0 h-screen w-full md:w-96 z-40 bg-black/95 backdrop-blur-xl shadow-2xl"
-          >
-            <div className="h-full overflow-y-auto pt-20 pb-8 px-4">
-              <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10">
-                <div className="p-6">
-                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🏆</span> Top Losers
-                  </h2>
-                  {loading ? (
-                    <div className="flex items-center justify-center h-40">
-                      <div className="text-purple-400">Loading...</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {topLosers.map((loser, index) => (
-                        <motion.div
-                          key={loser.id}
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors border border-white/5"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="text-2xl font-bold text-purple-400 w-8">
-                              #{index + 1}
+              {/* Tab Navigation */}
+              <div className="flex border-b border-purple-400/15">
+                <button
+                  onClick={() => setActiveTab('losers')}
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                    activeTab === 'losers'
+                      ? 'text-purple-300 border-b-2 border-purple-400 bg-purple-800/15'
+                      : 'text-white/70 hover:text-white hover:bg-purple-800/5'
+                  }`}
+                >
+                  🏆 Top Losers
+                </button>
+                <button
+                  onClick={() => setActiveTab('referrers')}
+                  className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                    activeTab === 'referrers'
+                      ? 'text-purple-300 border-b-2 border-purple-400 bg-purple-800/15'
+                      : 'text-white/70 hover:text-white hover:bg-purple-800/5'
+                  }`}
+                >
+                  🚀 Top Ref
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {loading ? (
+                  <div className="flex items-center justify-center h-40">
+                    <div className="text-purple-300">Loading...</div>
+                  </div>
+                ) : (
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'losers' && (
+                      <motion.div
+                        key="losers"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-4"
+                      >
+                        {topLosers.map((loser, index) => (
+                          <motion.div
+                            key={loser.id}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="p-4 bg-purple-800/15 rounded-lg hover:bg-purple-700/25 transition-colors border border-purple-400/15 backdrop-blur-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="text-2xl font-bold text-purple-300 w-8">
+                                #{index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-white font-mono text-sm">
+                                  {formatAddress(loser.wallet_address)}
+                                </div>
+                                <div className="text-red-300 font-bold mt-1">
+                                  {formatSOL(loser.total_losses)}
+                                </div>
+                                <div className="text-xs text-purple-200 mt-1">
+                                  {loser.total_transactions} transactions
+                                </div>
+                              </div>
+                              <div className="text-right text-xs">
+                                <div className="text-purple-200">Biggest Loss</div>
+                                <div className="text-red-300 font-mono mt-1">
+                                  {formatSOL(loser.biggest_loss)}
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <div className="text-white font-mono text-sm">
-                                {formatAddress(loser.wallet_address)}
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'referrers' && (
+                      <motion.div
+                        key="referrers"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-4"
+                      >
+                        {topReferrers.map((referrer, index) => (
+                          <motion.div
+                            key={referrer.wallet_address}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="p-4 bg-purple-800/15 rounded-lg hover:bg-purple-700/25 transition-colors border border-purple-400/15 backdrop-blur-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="text-2xl font-bold text-green-300 w-8">
+                                #{index + 1}
                               </div>
-                              <div className="text-red-400 font-bold mt-1">
-                                {formatSOL(loser.total_losses)}
+                              <div className="flex-1">
+                                <div className="text-white font-mono text-sm">
+                                  {formatAddress(referrer.wallet_address)}
+                                </div>
+                                <div className="text-green-300 font-bold mt-1">
+                                  {referrer.total_referrals} referrals
+                                </div>
+                                <div className="text-xs text-purple-200 mt-1">
+                                  {formatSOL(referrer.total_referral_losses)} total losses referred
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-400 mt-1">
-                                {loser.total_transactions} transactions
+                              <div className="text-right text-xs">
+                                <div className="text-purple-200">Pending Rewards</div>
+                                <div className="text-yellow-300 font-mono mt-1">
+                                  {formatSOL(referrer.pending_rewards)}
+                                </div>
                               </div>
                             </div>
-                            <div className="text-right text-xs">
-                              <div className="text-gray-400">Biggest Loss</div>
-                              <div className="text-red-400 font-mono mt-1">
-                                {formatSOL(loser.biggest_loss)}
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }; 

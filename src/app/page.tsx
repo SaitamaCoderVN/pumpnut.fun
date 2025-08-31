@@ -3,12 +3,13 @@
 import { Header } from '@/components/Header';
 import { AddressSearch } from '@/components/AddressSearch';
 import { usePumpTransactions } from '@/hooks/usePumpTransactions';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MemeProgressBar } from '@/components/MemeProgressBar';
 import { LosersLeaderboard } from '@/components/LosersLeaderboard';
 import { UserRankCard } from '@/components/UserRankCard';
 import { ClientWalletProvider } from '@/components/ClientWalletProvider';
 import { ShareModal } from '@/components/ShareModal';
+import { getReferralData, ReferralData } from '@/services/database';
 import { Tomorrow } from 'next/font/google';
 
 const tomorrow = Tomorrow({
@@ -18,6 +19,7 @@ const tomorrow = Tomorrow({
 
 export default function Home() {
   const [searchAddress, setSearchAddress] = useState<string>('');
+  const [referralData, setReferralData] = useState<ReferralData | null>(null);
   const { 
     transactions, 
     isLoading, 
@@ -32,6 +34,23 @@ export default function Home() {
   const formatSOL = (amount: number) => `${amount.toFixed(2)} SOL`;
 
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+
+  // Load referral data when search address changes
+  useEffect(() => {
+    const loadReferralData = async () => {
+      if (searchAddress) {
+        try {
+          const data = await getReferralData(searchAddress);
+          setReferralData(data);
+        } catch (error) {
+          console.error('Error loading referral data:', error);
+        }
+      }
+    };
+
+    loadReferralData();
+  }, [searchAddress]);
 
   return (
     <ClientWalletProvider>
@@ -46,9 +65,11 @@ export default function Home() {
           totalLosses={totalLosses}
           biggestLoss={biggestLoss}
           transactionCount={transactions.length}
+          referralCode={referralData?.referralCode}
         />
 
-        <Header />
+        {/* Header with Leaderboard button */}
+        <Header onLeaderboardToggle={() => setIsLeaderboardOpen(!isLeaderboardOpen)} />
 
         <div className="relative z-10 pt-32 pb-16 px-4">
           <div className="container mx-auto">
@@ -60,7 +81,7 @@ export default function Home() {
                 Track any wallet's pump.fun losses
               </h1>
               <p className="text-lg md:text-xl xl:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed">
-                Enter any Solana address to see their pump.fun losses! 🎰
+                Scan any Solana address to see their pump.fun losses! 🎰
               </p>
             </div>
 
@@ -72,14 +93,7 @@ export default function Home() {
                   currentBatch={currentBatch || 0} 
                   totalBatches={totalBatches || 0}
                 />
-                <div className="md:col-span-4 flex justify-center mt-6">
-                  <button
-                    onClick={() => setIsShareModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
-                  >
-                    Share on X
-                  </button>
-                </div>
+                {/* Remove the share button from here - it was showing during loading */}
               </div>
             ) : (
               searchAddress && (
@@ -120,6 +134,30 @@ export default function Home() {
                   />
                 </div>
               )
+            )}
+
+            {/* Add share button here - only after loading is complete and we have results */}
+            {!isLoading && searchAddress && transactions.length > 0 && rankData && (
+              <div className="text-center mt-6 mb-8">
+                <button
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors mb-3"
+                >
+                  Share on X
+                </button>
+                
+                {/* Referral bonus message */}
+                <div className="text-center">
+                  <p className="text-white/70 text-sm">
+                    💎 You'll receive 5% extra token airdrop from people who use your referral link!
+                  </p>
+                  {referralData && (
+                    <p className="text-white/60 text-xs mt-1">
+                      Referral Code: <span className="font-mono font-medium text-purple-300">{referralData.referralCode}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
 
             {!isLoading && searchAddress && transactions.length > 0 && (
@@ -171,7 +209,11 @@ export default function Home() {
               </div>
             )}
 
-            <LosersLeaderboard />
+            {/* LosersLeaderboard */}
+            <LosersLeaderboard 
+              isOpen={isLeaderboardOpen}
+              onClose={() => setIsLeaderboardOpen(false)}
+            />
           </div>
         </div>
       </main>
