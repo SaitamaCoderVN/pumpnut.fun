@@ -17,16 +17,24 @@ export const Header = ({ onLeaderboardToggle }: HeaderProps) => {
     <header className="fixed top-0 left-0 right-0 z-50 bg-purple-900/10 backdrop-blur-xl border-b border-purple-800/20">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          {/* Logo and X Logo */}
-          <div className="flex items-center gap-3">
+          {/* Logo and PumpAnalytics - Make clickable */}
+          <a 
+            href="https://dev.fun/p/c5d6487496372cdc25a4" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+          >
             <img src="/devfun-logo3.png" alt="Logo" className="h-8 w-auto" />
             <span className="text-white font-bold text-lg">PumpAnalytics</span>
-            {/* X Logo - chỉ thêm logo X màu trắng */}
+          </a>
+
+          {/* X Logo - separate from the main logo link */}
+          <div className="flex items-center gap-3">
             <a 
               href="https://x.com/pump_analytics" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="ml-2 hover:opacity-80 transition-opacity"
+              className="hover:opacity-80 transition-opacity"
             >
               <Image
                 src="/logo-white.png"
@@ -36,10 +44,7 @@ export const Header = ({ onLeaderboardToggle }: HeaderProps) => {
                 className="h-5 w-auto"
               />
             </a>
-          </div>
 
-          {/* Right side buttons */}
-          <div className="flex items-center gap-3">
             {/* Leaderboard Button */}
             <button
               onClick={onLeaderboardToggle}
