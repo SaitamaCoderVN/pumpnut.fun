@@ -18,23 +18,23 @@ export const Header = ({ onLeaderboardToggle }: HeaderProps) => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo and PumpAnalytics - Make clickable */}
-          <a 
-            href="https://dev.fun/p/c5d6487496372cdc25a4" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <img src="/devfun-logo3.png" alt="Logo" className="h-8 w-auto" />
-            <span className="text-white font-bold text-lg">PumpAnalytics</span>
-          </a>
-
-          {/* X Logo - separate from the main logo link */}
           <div className="flex items-center gap-3">
+            <a 
+              href="https://dev.fun/p/c5d6487496372cdc25a4" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <img src="/devfun-logo3.png" alt="Logo" className="h-8 w-auto" />
+              <span className="text-white font-bold text-lg">PumpAnalytics</span>
+            </a>
+            
+            {/* X Logo - back to original position */}
             <a 
               href="https://x.com/pump_analytics" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="hover:opacity-80 transition-opacity"
+              className="ml-2 hover:opacity-80 transition-opacity"
             >
               <Image
                 src="/logo-white.png"
@@ -44,7 +44,10 @@ export const Header = ({ onLeaderboardToggle }: HeaderProps) => {
                 className="h-5 w-auto"
               />
             </a>
+          </div>
 
+          {/* Right side buttons */}
+          <div className="flex items-center gap-3">
             {/* Leaderboard Button */}
             <button
               onClick={onLeaderboardToggle}
