@@ -28,7 +28,8 @@ export default function Home() {
     biggestLoss,
     currentBatch,
     totalBatches,
-    rankData
+    rankData,
+    forceRefresh
   } = usePumpTransactions(searchAddress);
 
   const formatSOL = (amount: number) => `${amount.toFixed(2)} SOL`;
@@ -143,12 +144,21 @@ export default function Home() {
             {/* Add share button here - only after loading is complete and we have results */}
             {!isLoading && searchAddress && transactions.length > 0 && rankData && (
               <div className="text-center mt-6 mb-8">
-                <button
-                  onClick={() => setIsShareModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors mb-3"
-                >
-                  Share on X
-                </button>
+                <div className="flex justify-center gap-3 mb-3">
+                  <button
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium transition-colors"
+                  >
+                    Share on X
+                  </button>
+                  <button
+                    onClick={forceRefresh}
+                    className="inline-flex items-center gap-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-medium transition-colors"
+                    title="Refresh data from blockchain"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
                 
                 {/* Referral bonus message */}
                 <div className="text-center">

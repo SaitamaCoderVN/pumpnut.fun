@@ -128,10 +128,11 @@ const isPumpInstruction = (instruction: CompiledInstruction | MessageCompiledIns
 // Add a sleep utility function if not already present
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Update the fetchPumpTransactions function to handle rate limits better
-export const fetchPumpTransactions = async (
+// Fetch only new transactions since last sync
+export const fetchNewPumpTransactions = async (
   connection: Connection,
   walletAddress: string,
+  lastSyncSignature?: string | null,
   onProgress?: (current: number, total: number) => void
 ): Promise<PumpTransaction[]> => {
   try {
@@ -141,11 +142,21 @@ export const fetchPumpTransactions = async (
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
-    const allSignatures = await conn.getSignaturesForAddress(
-      pubKey,
-      { limit: MAX_TRANSACTIONS }, // Increase limit to get more transactions
-      'confirmed'
-    );
+    // Build options for getSignaturesForAddress
+    const options: any = {
+      limit: MAX_TRANSACTIONS,
+      commitment: 'confirmed'
+    };
+
+    // If we have a last sync signature, only fetch newer transactions
+    if (lastSyncSignature) {
+      options.until = lastSyncSignature;
+      console.log(`Fetching new transactions since: ${lastSyncSignature}`);
+    } else {
+      console.log('First time sync - fetching all transactions');
+    }
+
+    const allSignatures = await conn.getSignaturesForAddress(pubKey, options);
 
     if (allSignatures.length === 0) {
       return [];
@@ -308,4 +319,82 @@ export const calculateTotalLosses = (transactions: PumpTransaction[]): number =>
   
   console.log(`Total losses calculated: ${totalLosses} SOL from ${transactions.length} transactions`);
   return totalLosses;
+};
+
+// Main function that combines cache and fresh data
+export const fetchPumpTransactions = async (
+  connection: Connection,
+  walletAddress: string,
+  onProgress?: (current: number, total: number) => void
+): Promise<PumpTransaction[]> => {
+  // Import database functions dynamically to avoid circular dependency
+  const { 
+    getCachedTransactions, 
+    saveTransactionsToCache, 
+    getLatestTransactionSignature,
+    updateWalletSyncInfo
+  } = await import('@/services/database');
+
+  try {
+    console.log(`Starting transaction fetch for wallet: ${walletAddress}`);
+    
+    // Step 1: Get cached transactions
+    const cachedTransactions = await getCachedTransactions(walletAddress);
+    console.log(`Found ${cachedTransactions.length} cached transactions`);
+
+    // Step 2: Get the latest synced signature
+    const latestSignature = await getLatestTransactionSignature(walletAddress);
+    console.log(`Latest synced signature: ${latestSignature}`);
+
+    // Step 3: Fetch only new transactions since last sync
+    const newTransactions = await fetchNewPumpTransactions(
+      connection, 
+      walletAddress, 
+      latestSignature,
+      onProgress
+    );
+    console.log(`Fetched ${newTransactions.length} new transactions`);
+
+    // Step 4: Save new transactions to cache
+    if (newTransactions.length > 0) {
+      await saveTransactionsToCache(walletAddress, newTransactions);
+      
+      // Update sync info with the latest transaction
+      const sortedNew = newTransactions.sort((a, b) => b.timestamp - a.timestamp);
+      if (sortedNew.length > 0) {
+        await updateWalletSyncInfo(
+          walletAddress,
+          sortedNew[0].signature,
+          sortedNew[0].timestamp
+        );
+      }
+    }
+
+    // Step 5: Combine cached and new transactions
+    const allTransactions = [...newTransactions, ...cachedTransactions];
+    
+    // Remove duplicates and sort by timestamp (newest first)
+    const uniqueTransactions = allTransactions
+      .filter((tx, index, self) => 
+        index === self.findIndex(t => t.signature === tx.signature)
+      )
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    console.log(`Total unique transactions: ${uniqueTransactions.length}`);
+    return uniqueTransactions;
+
+  } catch (error) {
+    console.error('Error in fetchPumpTransactions:', error);
+    
+    // Fallback to cached data if fetch fails
+    try {
+      const { getCachedTransactions } = await import('@/services/database');
+      const cachedTransactions = await getCachedTransactions(walletAddress);
+      console.log(`Returning cached transactions as fallback: ${cachedTransactions.length}`);
+      return cachedTransactions;
+    } catch (cacheError) {
+      console.error('Error getting cached transactions:', cacheError);
+      throw error;
+    }
+  }
 }; 

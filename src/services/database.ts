@@ -289,4 +289,181 @@ export const getReferralRewards = async (walletAddress: string): Promise<Referra
     console.error('Error getting referral rewards:', error);
     throw error;
   }
+};
+
+// ===== TRANSACTION CACHE FUNCTIONS =====
+
+export interface CachedTransaction {
+  signature: string;
+  timestamp: number;
+  amount: number;
+  type: 'deposit' | 'withdraw' | 'bet';
+  success: boolean;
+}
+
+export interface WalletSyncInfo {
+  lastSyncSignature: string | null;
+  lastSyncTimestamp: number | null;
+}
+
+// Get cached transactions for a wallet
+export const getCachedTransactions = async (walletAddress: string): Promise<CachedTransaction[]> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_cached_transactions', {
+        wallet_address_param: walletAddress
+      });
+
+    if (error) {
+      console.warn('Error getting cached transactions:', error);
+      return [];
+    }
+
+    return data.map((tx: any) => ({
+      signature: tx.signature,
+      timestamp: tx.tx_timestamp,
+      amount: parseFloat(tx.amount),
+      type: tx.type,
+      success: tx.success
+    }));
+  } catch (error) {
+    console.error('Error getting cached transactions:', error);
+    return [];
+  }
+};
+
+// Save new transactions to cache
+export const saveTransactionsToCache = async (
+  walletAddress: string, 
+  transactions: CachedTransaction[]
+): Promise<void> => {
+  try {
+    if (transactions.length === 0) return;
+
+    // Prepare data for insertion
+    const transactionData = transactions.map(tx => ({
+      wallet_address: walletAddress,
+      signature: tx.signature,
+      tx_timestamp: tx.timestamp,
+      amount: tx.amount,
+      type: tx.type,
+      success: tx.success
+    }));
+
+    const { error } = await supabase
+      .from('wallet_transactions')
+      .upsert(transactionData, {
+        onConflict: 'wallet_address,signature',
+        ignoreDuplicates: true
+      });
+
+    if (error) {
+      console.warn('Error saving transactions to cache:', error);
+    } else {
+      console.log(`Saved ${transactions.length} transactions to cache for wallet ${walletAddress}`);
+    }
+  } catch (error) {
+    console.error('Error saving transactions to cache:', error);
+  }
+};
+
+// Get the latest transaction signature for incremental sync
+export const getLatestTransactionSignature = async (walletAddress: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_latest_transaction_signature', {
+        wallet_address_param: walletAddress
+      });
+
+    if (error) {
+      console.warn('Error getting latest transaction signature:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error getting latest transaction signature:', error);
+    return null;
+  }
+};
+
+// Get wallet sync info (last synced signature and timestamp)
+export const getWalletSyncInfo = async (walletAddress: string): Promise<WalletSyncInfo> => {
+  try {
+    const { data, error } = await supabase
+      .from('wallet_losses')
+      .select('last_sync_signature, last_sync_timestamp')
+      .eq('wallet_address', walletAddress)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Error getting wallet sync info:', error);
+    }
+
+    return {
+      lastSyncSignature: data?.last_sync_signature || null,
+      lastSyncTimestamp: data?.last_sync_timestamp || null
+    };
+  } catch (error) {
+    console.error('Error getting wallet sync info:', error);
+    return {
+      lastSyncSignature: null,
+      lastSyncTimestamp: null
+    };
+  }
+};
+
+// Update wallet sync info
+export const updateWalletSyncInfo = async (
+  walletAddress: string,
+  latestSignature: string,
+  latestTimestamp: number
+): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('wallet_losses')
+      .update({
+        last_sync_signature: latestSignature,
+        last_sync_timestamp: latestTimestamp
+      })
+      .eq('wallet_address', walletAddress);
+
+    if (error) {
+      console.warn('Error updating wallet sync info:', error);
+    }
+  } catch (error) {
+    console.error('Error updating wallet sync info:', error);
+  }
+};
+
+// Clear cache for a wallet (for force refresh)
+export const clearWalletCache = async (walletAddress: string): Promise<void> => {
+  try {
+    // Delete cached transactions
+    const { error: deleteError } = await supabase
+      .from('wallet_transactions')
+      .delete()
+      .eq('wallet_address', walletAddress);
+
+    if (deleteError) {
+      console.warn('Error clearing transaction cache:', deleteError);
+    }
+
+    // Reset sync info
+    const { error: updateError } = await supabase
+      .from('wallet_losses')
+      .update({
+        last_sync_signature: null,
+        last_sync_timestamp: null
+      })
+      .eq('wallet_address', walletAddress);
+
+    if (updateError) {
+      console.warn('Error resetting sync info:', updateError);
+    }
+
+    console.log(`Cache cleared for wallet: ${walletAddress}`);
+  } catch (error) {
+    console.error('Error clearing wallet cache:', error);
+  }
 }; 

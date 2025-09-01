@@ -1,7 +1,7 @@
 import { useConnection } from '@solana/wallet-adapter-react';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchPumpTransactions, PumpTransaction, calculateTotalLosses } from '@/services/solana';
-import { updateWalletLosses, UserRankData, getReferralData, ReferralData, processReferral } from '@/services/database';
+import { updateWalletLosses, UserRankData, getReferralData, ReferralData, processReferral, clearWalletCache } from '@/services/database';
 
 export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
   const { connection } = useConnection();
@@ -118,6 +118,22 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     }
   }, [searchAddressWithTimestamp, fetchTransactions]);
 
+  // Function to force refresh (clear cache and refetch)
+  const forceRefresh = useCallback(async () => {
+    if (!searchAddressWithTimestamp) return;
+    
+    const searchAddress = searchAddressWithTimestamp.split('?')[0];
+    setIsLoading(true);
+    
+    try {
+      await clearWalletCache(searchAddress);
+      await fetchTransactions();
+    } catch (err) {
+      console.error('Error during force refresh:', err);
+      setError('Failed to refresh data');
+    }
+  }, [searchAddressWithTimestamp, fetchTransactions]);
+
   return {
     transactions,
     isLoading,
@@ -129,5 +145,6 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     currentBatch,
     totalBatches,
     rankData,
+    forceRefresh, // Add this to enable manual refresh
   };
 }; 
