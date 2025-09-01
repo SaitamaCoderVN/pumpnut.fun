@@ -1,14 +1,21 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
 
 
-// pump.fun program ID (correct mainnet program ID)
-const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || '';
+// pump.fun program IDs (primary and AMM programs)
+const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const PUMP_PROGRAM_IDS = [
+  PUMP_PROGRAM_ID,
+  '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', // Main pump.fun program
+  'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA', // Pump.fun AMM program
+  'BSfD6SHZigAfDWSjzD5Q41jw8LmKwtmjskPH9XW1mrRW', // photton pump.fun program
+  // Add more pump.fun program IDs as discovered
+];
 
 // Thay đổi endpoint RPC
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || '';
+const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
 
 // Configuration constants
-const MAX_TRANSACTIONS = parseInt(process.env.NEXT_PUBLIC_MAX_TRANSACTIONS || '');
+const MAX_TRANSACTIONS = parseInt(process.env.NEXT_PUBLIC_MAX_TRANSACTIONS || '1000') || 1000; // Increased to get more transactions
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
@@ -54,8 +61,8 @@ class TokenBucket {
   }
 }
 
-// Create rate limiter instance (5 requests per second)
-const rateLimiter = new TokenBucket(2, 0.3); // Giảm xuống 2 tokens, 0.3 requests/second
+// Create rate limiter instance - Increased for better performance
+const rateLimiter = new TokenBucket(10, 2); // 10 tokens, 2 requests/second
 
 export interface PumpTransaction {
   signature: string;
@@ -122,71 +129,92 @@ const fetchWithTimeout = async <T>(
 // Helper function to check if an instruction uses pump.fun program
 const isPumpInstruction = (instruction: CompiledInstruction | MessageCompiledInstruction, accounts: PublicKey[]): boolean => {
   const programId = accounts[instruction.programIdIndex];
-  return programId && programId.toBase58() === PUMP_PROGRAM_ID;
+  return programId && PUMP_PROGRAM_IDS.includes(programId.toBase58());
 };
 
 // Add a sleep utility function if not already present
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch only new transactions since last sync
-export const fetchNewPumpTransactions = async (
+export interface ProgressData {
+  processedTransactions: number;
+  pumpTransactions: number;
+  totalProfit: number;
+  totalLoss: number;
+  netResult: number;
+  currentBatchProgress: string;
+}
+
+// Fetch latest transactions and detect pump.fun ones
+export const fetchLatestPumpTransactions = async (
   connection: Connection,
   walletAddress: string,
-  lastSyncSignature?: string | null,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number, progressData?: ProgressData) => void
 ): Promise<PumpTransaction[]> => {
   try {
     // Log the RPC endpoint being used
     console.log('Using RPC endpoint:', HELIUS_RPC_ENDPOINT);
+    console.log('Using PUMP_PROGRAM_IDS:', PUMP_PROGRAM_IDS);
+    console.log('MAX_TRANSACTIONS:', MAX_TRANSACTIONS);
 
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
-    // Build options for getSignaturesForAddress
+    // Build options for getSignaturesForAddress - ALWAYS fetch latest MAX_TRANSACTIONS
     const options: any = {
       limit: MAX_TRANSACTIONS,
       commitment: 'confirmed'
     };
 
-    // If we have a last sync signature, only fetch newer transactions
-    if (lastSyncSignature) {
-      options.until = lastSyncSignature;
-      console.log(`Fetching new transactions since: ${lastSyncSignature}`);
-    } else {
-      console.log('First time sync - fetching all transactions');
-    }
+    console.log(`Fetching latest ${MAX_TRANSACTIONS} transactions for wallet`);
 
     const allSignatures = await conn.getSignaturesForAddress(pubKey, options);
+    console.log(`Found ${allSignatures.length} total signatures for address: ${walletAddress}`);
 
     if (allSignatures.length === 0) {
+      console.log('No signatures found for this address');
       return [];
     }
 
-    const batchSize = 3;
+    const batchSize = 5; // Increased batch size for better performance
     const totalBatches = Math.ceil(allSignatures.length / batchSize);
     
     // Initial progress update
     onProgress?.(1, totalBatches);
 
     const transactions: PumpTransaction[] = [];
+    let processedCount = 0;
+    let pumpCount = 0;
+    let runningProfit = 0;
+    let runningLoss = 0;
 
     for (let i = 0; i < allSignatures.length; i += batchSize) {
       const currentBatch = Math.floor(i / batchSize) + 1;
       
-      // Update progress before processing batch
-      onProgress?.(currentBatch, totalBatches);
-      console.log(`Processing batch ${currentBatch}/${totalBatches}`);
+      // 🆕 Calculate current stats
+      const currentNetResult = runningProfit - runningLoss;
+      const progressData: ProgressData = {
+        processedTransactions: processedCount,
+        pumpTransactions: pumpCount,
+        totalProfit: runningProfit,
+        totalLoss: runningLoss,
+        netResult: currentNetResult,
+        currentBatchProgress: `Processing batch ${currentBatch}/${totalBatches}...`
+      };
+      
+      // Update progress with detailed data
+      onProgress?.(currentBatch, totalBatches, progressData);
+      console.log(`Processing batch ${currentBatch}/${totalBatches} - Pump: ${pumpCount}, Profit: ${runningProfit.toFixed(4)} SOL, Loss: ${runningLoss.toFixed(4)} SOL`);
 
-      // Add delay for visual effect
-      await sleep(1000);
+      // Add small delay between batches to prevent overwhelming the RPC
+      await sleep(300);
 
       const batch = allSignatures.slice(i, i + batchSize);
 
       await Promise.all(
         batch.map(async (sig) => {
           try {
-            // Add delay before each transaction fetch
-            await sleep(500); // 500ms delay between transactions within a batch
+            // Rate limit requests
+            await rateLimiter.getToken();
             
             const tx = await conn.getTransaction(sig.signature, {
               maxSupportedTransactionVersion: 0,
@@ -198,88 +226,234 @@ export const fetchNewPumpTransactions = async (
               return;
             }
 
-            // Get all accounts involved in the transaction
+            console.log(`Processing transaction ${sig.signature}:`, {
+              blockTime: tx.blockTime,
+              fee: tx.meta?.fee,
+              success: tx.meta?.err === null,
+              messageType: 'version' in tx.transaction.message ? 'MessageV0' : 'Legacy'
+            });
+
+            // Get all accounts involved in the transaction (with ALT handling)
             let accounts: PublicKey[];
-            if ('version' in tx.transaction.message) {
-              accounts = [...(tx.transaction.message as MessageV0).staticAccountKeys];
-              if (tx.meta?.loadedAddresses) {
-                accounts = accounts.concat(
-                  tx.meta.loadedAddresses.writable,
-                  tx.meta.loadedAddresses.readonly
-                );
+            try {
+              if ('version' in tx.transaction.message) {
+                // MessageV0 format - handle Address Lookup Tables
+                const messageV0 = tx.transaction.message as MessageV0;
+                accounts = [...messageV0.staticAccountKeys];
+                
+                // Safely handle loaded addresses from Address Lookup Tables
+                if (tx.meta?.loadedAddresses) {
+                  if (tx.meta.loadedAddresses.writable && tx.meta.loadedAddresses.writable.length > 0) {
+                    accounts = accounts.concat(tx.meta.loadedAddresses.writable);
+                  }
+                  if (tx.meta.loadedAddresses.readonly && tx.meta.loadedAddresses.readonly.length > 0) {
+                    accounts = accounts.concat(tx.meta.loadedAddresses.readonly);
+                  }
+                  console.log(`Transaction ${sig.signature} - Loaded ${tx.meta.loadedAddresses.writable?.length || 0} writable and ${tx.meta.loadedAddresses.readonly?.length || 0} readonly addresses from ALTs`);
+                } else {
+                  console.warn(`Transaction ${sig.signature} - MessageV0 but no loaded addresses. This might cause issues with account resolution.`);
+                }
+              } else {
+                // Legacy Message format
+                const legacyMessage = tx.transaction.message as Message;
+                accounts = legacyMessage.accountKeys;
               }
-            } else {
-              const legacyMessage = tx.transaction.message as Message;
-              accounts = legacyMessage.accountKeys;
+              
+              console.log(`Transaction ${sig.signature} - Total accounts resolved: ${accounts.length}`);
+              
+            } catch (accountError) {
+              console.error(`Error resolving accounts for transaction ${sig.signature}:`, accountError);
+              console.log(`Skipping transaction due to account resolution failure`);
+              return;
             }
 
             // Check if any instruction uses the pump.fun program
             let isPumpTransaction = false;
             const message = tx.transaction.message;
             
-            if ('version' in message) {
-              // MessageV0 format
-              const compiledInstructions = (message as MessageV0).compiledInstructions;
-              isPumpTransaction = compiledInstructions.some(ix => {
-                const programId = accounts[ix.programIdIndex];
-                return programId && programId.toBase58() === PUMP_PROGRAM_ID;
-              });
-            } else {
-              // Legacy Message format
-              const instructions = (message as Message).instructions;
-              isPumpTransaction = instructions.some(ix => {
-                const programId = accounts[ix.programIdIndex];
-                return programId && programId.toBase58() === PUMP_PROGRAM_ID;
-              });
-            }
-
-            if (!isPumpTransaction) {
+            try {
+              if ('version' in message) {
+                // MessageV0 format - enhanced ALT handling
+                const messageV0 = message as MessageV0;
+                const compiledInstructions = messageV0.compiledInstructions;
+                
+                console.log(`Checking MessageV0 transaction ${sig.signature} with ${compiledInstructions.length} instructions and ${accounts.length} total accounts`);
+                
+                isPumpTransaction = compiledInstructions.some((ix, index) => {
+                  try {
+                    if (ix.programIdIndex >= accounts.length) {
+                      console.warn(`Instruction ${index}: programIdIndex ${ix.programIdIndex} >= accounts.length ${accounts.length} for transaction ${sig.signature}`);
+                      return false;
+                    }
+                    
+                    const programId = accounts[ix.programIdIndex];
+                    if (!programId) {
+                      console.warn(`Instruction ${index}: No program ID found at index ${ix.programIdIndex} for transaction ${sig.signature}`);
+                      return false;
+                    }
+                    
+                    const programIdStr = programId.toBase58();
+                    const isPump = PUMP_PROGRAM_IDS.includes(programIdStr);
+                    
+                    console.log(`Instruction ${index}: Program ${programIdStr} ${isPump ? '✅ PUMP.FUN' : '❌ Other'}`);
+                    
+                    if (isPump) {
+                      console.log(`✅ Found pump.fun instruction in transaction ${sig.signature} (V0) - Program: ${programIdStr}`);
+                    }
+                    return isPump;
+                  } catch (ixError) {
+                    console.warn(`Error checking instruction ${index} in V0 transaction ${sig.signature}:`, ixError);
+                    return false;
+                  }
+                });
+              } else {
+                // Legacy Message format
+                const legacyMessage = message as Message;
+                const instructions = legacyMessage.instructions;
+                
+                console.log(`Checking Legacy transaction ${sig.signature} with ${instructions.length} instructions and ${accounts.length} total accounts`);
+                
+                isPumpTransaction = instructions.some((ix, index) => {
+                  try {
+                    if (ix.programIdIndex >= accounts.length) {
+                      console.warn(`Legacy instruction ${index}: programIdIndex ${ix.programIdIndex} >= accounts.length ${accounts.length} for transaction ${sig.signature}`);
+                      return false;
+                    }
+                    
+                    const programId = accounts[ix.programIdIndex];
+                    if (!programId) {
+                      console.warn(`Legacy instruction ${index}: No program ID found at index ${ix.programIdIndex} for transaction ${sig.signature}`);
+                      return false;
+                    }
+                    
+                    const programIdStr = programId.toBase58();
+                    const isPump = PUMP_PROGRAM_IDS.includes(programIdStr);
+                    
+                    console.log(`Legacy instruction ${index}: Program ${programIdStr} ${isPump ? '✅ PUMP.FUN' : '❌ Other'}`);
+                    
+                    if (isPump) {
+                      console.log(`✅ Found pump.fun instruction in transaction ${sig.signature} (Legacy) - Program: ${programIdStr}`);
+                    }
+                    return isPump;
+                  } catch (ixError) {
+                    console.warn(`Error checking legacy instruction ${index} in transaction ${sig.signature}:`, ixError);
+                    return false;
+                  }
+                });
+              }
+            } catch (messageError) {
+              console.error(`Error parsing transaction message for ${sig.signature}:`, messageError);
+              console.log(`Skipping transaction due to message parsing failure`);
               return;
             }
 
-            // Find the user's account index
+            // Find the user's account index first to calculate balance change
             const userAccountIndex = accounts.findIndex(account => 
               account.toBase58() === pubKey.toBase58()
             );
 
             if (userAccountIndex === -1) {
+              console.log(`User account not found in transaction ${sig.signature}`);
+              return;
+            }
+
+            // Check if we have metadata for balance changes
+            if (!tx.meta) {
+              console.log(`No metadata found for transaction ${sig.signature}`);
               return;
             }
 
             // Calculate SOL balance changes
-            const preBalance = tx.meta?.preBalances[userAccountIndex] || 0;
-            const postBalance = tx.meta?.postBalances[userAccountIndex] || 0;
-            const solBalanceChange = (preBalance - postBalance) / 1e9; // Convert from lamports to SOL
+            const preBalance = tx.meta.preBalances[userAccountIndex] || 0;
+            const postBalance = tx.meta.postBalances[userAccountIndex] || 0;
             
-            // For pump.fun, we're mainly interested in SOL spent (losses)
-            // A positive solBalanceChange means SOL was spent (user lost SOL)
-            if (solBalanceChange > 0.001) { // Only count significant SOL losses (>0.001 SOL)
-              // Check if this was a successful transaction
-              const success = tx.meta?.err === null;
-              
-              // Determine transaction type based on instruction data if possible
+            if (preBalance === undefined || postBalance === undefined) {
+              console.log(`Invalid balance data for transaction ${sig.signature}`);
+              return;
+            }
+            
+            const solBalanceChange = (preBalance - postBalance) / 1e9; // Convert from lamports to SOL
+
+            // Simple pump.fun detection: Program ID match OR significant SOL movement
+            console.log(`Checking transaction ${sig.signature}:`, {
+              isPumpByProgramId: isPumpTransaction,
+              solBalanceChange,
+              isSuccessful: tx.meta?.err === null
+            });
+
+            // If not a pump.fun program transaction, skip (no fallback for now)
+            if (!isPumpTransaction) {
+              console.log(`Transaction ${sig.signature} - Not a pump.fun program transaction`);
+              return;
+            }
+            
+            // Only process successful pump.fun transactions with SOL movement
+            const isSuccessful = tx.meta?.err === null;
+            if (!isSuccessful) {
+              console.log(`Transaction ${sig.signature} - Failed transaction, skipping`);
+              return;
+            }
+            
+            console.log(`Transaction ${sig.signature} balance analysis:`, {
+              preBalance: preBalance / 1e9,
+              postBalance: postBalance / 1e9,
+              change: solBalanceChange,
+              userAccountIndex,
+              totalAccounts: accounts.length
+            });
+            
+            // Calculate profit/loss based on SOL balance change
+            // Positive solBalanceChange = SOL spent = Loss
+            // Negative solBalanceChange = SOL gained = Profit
+            
+            console.log(`Pump.fun transaction analysis:`, {
+              signature: sig.signature,
+              preBalance: preBalance / 1e9,
+              postBalance: postBalance / 1e9,
+              solBalanceChange,
+              interpretation: solBalanceChange > 0 ? 'LOSS (SOL spent)' : solBalanceChange < 0 ? 'PROFIT (SOL gained)' : 'NO CHANGE'
+            });
+            
+            // Record ANY SOL movement in pump.fun transactions (even small amounts)
+            if (Math.abs(solBalanceChange) > 0.0001) { // Very small threshold
+              // Determine transaction type
               let transactionType: 'deposit' | 'withdraw' | 'bet' = 'bet';
               
-              // For pump.fun, most SOL spending transactions are "bets" (buying tokens)
               if (solBalanceChange > 0) {
-                transactionType = 'bet'; // User spent SOL to buy tokens
+                transactionType = 'bet'; // User spent SOL (loss)
+              } else if (solBalanceChange < 0) {
+                transactionType = 'withdraw'; // User received SOL (profit)
               }
               
               transactions.push({
                 signature: sig.signature,
                 timestamp: tx.blockTime || Math.floor(Date.now() / 1000),
-                amount: solBalanceChange, // This is the SOL amount lost
+                amount: Math.abs(solBalanceChange),
                 type: transactionType,
-                success: success,
+                success: true, // We already checked it's successful
               });
               
-              console.log(`Found pump.fun transaction:`, {
+              console.log(`✅ Recorded pump.fun transaction:`, {
                 signature: sig.signature,
-                solSpent: solBalanceChange,
+                amount: Math.abs(solBalanceChange),
                 type: transactionType,
-                success: success,
-                preBalance: preBalance / 1e9,
-                postBalance: postBalance / 1e9,
+                result: solBalanceChange > 0 ? 'LOSS' : 'PROFIT'
+              });
+
+              // 🆕 Update counters when pump transaction is found
+              if (Math.abs(solBalanceChange) > 0.0001) {
+                pumpCount++;
+                
+                if (solBalanceChange > 0) {
+                  runningLoss += Math.abs(solBalanceChange);
+                } else if (solBalanceChange < 0) {
+                  runningProfit += Math.abs(solBalanceChange);
+                }
+              }
+            } else {
+              console.log(`❌ Skipping pump.fun transaction with minimal SOL change:`, {
+                signature: sig.signature,
+                solBalanceChange
               });
             }
 
@@ -309,92 +483,46 @@ export const fetchNewPumpTransactions = async (
 
 export const calculateTotalLosses = (transactions: PumpTransaction[]): number => {
   const totalLosses = transactions.reduce((total, tx) => {
-    // Only count successful bets as losses (SOL spent on pump.fun)
+    // Only count 'bet' transactions as losses (SOL spent on pump.fun)
     if (tx.type === 'bet' && tx.success && tx.amount > 0) {
-      console.log(`Adding loss from transaction ${tx.signature}: ${tx.amount} SOL`);
+      console.log(`📉 Loss: ${tx.amount} SOL from transaction ${tx.signature}`);
       return total + tx.amount;
     }
     return total;
   }, 0);
   
-  console.log(`Total losses calculated: ${totalLosses} SOL from ${transactions.length} transactions`);
+  console.log(`💸 Total losses: ${totalLosses} SOL from ${transactions.length} transactions`);
   return totalLosses;
 };
 
-// Main function that combines cache and fresh data
-export const fetchPumpTransactions = async (
+export const calculateTotalProfits = (transactions: PumpTransaction[]): number => {
+  const totalProfits = transactions.reduce((total, tx) => {
+    // Count 'withdraw' transactions as profits (SOL gained from pump.fun)
+    if (tx.type === 'withdraw' && tx.success && tx.amount > 0) {
+      console.log(`📈 Profit: ${tx.amount} SOL from transaction ${tx.signature}`);
+      return total + tx.amount;
+    }
+    return total;
+  }, 0);
+  
+  console.log(`💰 Total profits: ${totalProfits} SOL from ${transactions.length} transactions`);
+  return totalProfits;
+};
+
+export const calculateNetResult = (transactions: PumpTransaction[]): number => {
+  const profits = calculateTotalProfits(transactions);
+  const losses = calculateTotalLosses(transactions);
+  const net = profits - losses;
+  
+  console.log(`🧮 Net result: ${net} SOL (${profits} profit - ${losses} loss)`);
+  return net;
+};
+
+// Update the function signature to accept progressData parameter
+export async function fetchPumpTransactions(
   connection: Connection,
   walletAddress: string,
-  onProgress?: (current: number, total: number) => void
-): Promise<PumpTransaction[]> => {
-  // Import database functions dynamically to avoid circular dependency
-  const { 
-    getCachedTransactions, 
-    saveTransactionsToCache, 
-    getLatestTransactionSignature,
-    updateWalletSyncInfo
-  } = await import('@/services/database');
-
-  try {
-    console.log(`Starting transaction fetch for wallet: ${walletAddress}`);
-    
-    // Step 1: Get cached transactions
-    const cachedTransactions = await getCachedTransactions(walletAddress);
-    console.log(`Found ${cachedTransactions.length} cached transactions`);
-
-    // Step 2: Get the latest synced signature
-    const latestSignature = await getLatestTransactionSignature(walletAddress);
-    console.log(`Latest synced signature: ${latestSignature}`);
-
-    // Step 3: Fetch only new transactions since last sync
-    const newTransactions = await fetchNewPumpTransactions(
-      connection, 
-      walletAddress, 
-      latestSignature,
-      onProgress
-    );
-    console.log(`Fetched ${newTransactions.length} new transactions`);
-
-    // Step 4: Save new transactions to cache
-    if (newTransactions.length > 0) {
-      await saveTransactionsToCache(walletAddress, newTransactions);
-      
-      // Update sync info with the latest transaction
-      const sortedNew = newTransactions.sort((a, b) => b.timestamp - a.timestamp);
-      if (sortedNew.length > 0) {
-        await updateWalletSyncInfo(
-          walletAddress,
-          sortedNew[0].signature,
-          sortedNew[0].timestamp
-        );
-      }
-    }
-
-    // Step 5: Combine cached and new transactions
-    const allTransactions = [...newTransactions, ...cachedTransactions];
-    
-    // Remove duplicates and sort by timestamp (newest first)
-    const uniqueTransactions = allTransactions
-      .filter((tx, index, self) => 
-        index === self.findIndex(t => t.signature === tx.signature)
-      )
-      .sort((a, b) => b.timestamp - a.timestamp);
-
-    console.log(`Total unique transactions: ${uniqueTransactions.length}`);
-    return uniqueTransactions;
-
-  } catch (error) {
-    console.error('Error in fetchPumpTransactions:', error);
-    
-    // Fallback to cached data if fetch fails
-    try {
-      const { getCachedTransactions } = await import('@/services/database');
-      const cachedTransactions = await getCachedTransactions(walletAddress);
-      console.log(`Returning cached transactions as fallback: ${cachedTransactions.length}`);
-      return cachedTransactions;
-    } catch (cacheError) {
-      console.error('Error getting cached transactions:', cacheError);
-      throw error;
-    }
-  }
-}; 
+  onProgress?: (current: number, total: number, progressData?: ProgressData) => void
+): Promise<PumpTransaction[]> {
+  return fetchLatestPumpTransactions(connection, walletAddress, onProgress);
+} 

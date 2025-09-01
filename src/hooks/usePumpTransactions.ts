@@ -1,6 +1,6 @@
 import { useConnection } from '@solana/wallet-adapter-react';
 import { useCallback, useEffect, useState } from 'react';
-import { fetchPumpTransactions, PumpTransaction, calculateTotalLosses } from '@/services/solana';
+import { fetchPumpTransactions, PumpTransaction, calculateTotalLosses, calculateTotalProfits, calculateNetResult } from '@/services/solana';
 import { updateWalletLosses, UserRankData, getReferralData, ReferralData, processReferral, clearWalletCache } from '@/services/database';
 
 export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
@@ -11,6 +11,16 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
   const [currentBatch, setCurrentBatch] = useState(0);
   const [totalBatches, setTotalBatches] = useState(0);
   const [rankData, setRankData] = useState<UserRankData | null>(null);
+  
+  //  Real-time progress states
+  const [realTimeStats, setRealTimeStats] = useState({
+    processedTransactions: 0,
+    pumpTransactions: 0,
+    totalProfit: 0,
+    totalLoss: 0,
+    netResult: 0,
+    currentBatchProgress: ''
+  });
 
   const fetchTransactions = useCallback(async () => {
     if (!searchAddressWithTimestamp) {
@@ -20,6 +30,15 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
       setCurrentBatch(0);
       setTotalBatches(0);
       setRankData(null);
+      // 🆕 Reset real-time stats
+      setRealTimeStats({
+        processedTransactions: 0,
+        pumpTransactions: 0,
+        totalProfit: 0,
+        totalLoss: 0,
+        netResult: 0,
+        currentBatchProgress: ''
+      });
       return;
     }
 
@@ -32,9 +51,19 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
 
     setIsLoading(true);
     setError(null);
-    setTransactions([]); // Reset transactions when starting a new search
+    setTransactions([]);
     setCurrentBatch(0);
     setTotalBatches(0);
+    
+    // 🆕 Reset real-time stats
+    setRealTimeStats({
+      processedTransactions: 0,
+      pumpTransactions: 0,
+      totalProfit: 0,
+      totalLoss: 0,
+      netResult: 0,
+      currentBatchProgress: 'Starting...'
+    });
 
     try {
       console.log('Fetching transactions for address:', searchAddress);
@@ -42,10 +71,22 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
       const txs = await fetchPumpTransactions(
         connection, 
         searchAddress,
-        (current, total) => {
-          console.log('Progress update:', { current, total });
+        (current, total, progressData) => {
+          console.log('Progress update:', { current, total, progressData });
           setCurrentBatch(current);
           setTotalBatches(total);
+          
+          // 🆕 Update real-time stats
+          if (progressData) {
+            setRealTimeStats({
+              processedTransactions: progressData.processedTransactions,
+              pumpTransactions: progressData.pumpTransactions,
+              totalProfit: progressData.totalProfit,
+              totalLoss: progressData.totalLoss,
+              netResult: progressData.netResult,
+              currentBatchProgress: progressData.currentBatchProgress
+            });
+          }
         }
       );
       
@@ -53,13 +94,27 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
       setTransactions(txs);
       
       if (txs.length > 0) {
-        // Calculate losses
+        // Calculate profits, losses, and net result
         const totalLoss = calculateTotalLosses(txs);
+        const totalProfit = calculateTotalProfits(txs);
+        const netResult = calculateNetResult(txs);
+        
         const biggestLoss = txs.reduce((max, tx) => 
           tx.type === 'bet' && tx.success && tx.amount > max ? tx.amount : max, 0
         );
+        
+        const biggestProfit = txs.reduce((max, tx) => 
+          tx.type === 'withdraw' && tx.success && tx.amount > max ? tx.amount : max, 0
+        );
 
-        console.log('Calculated losses:', { totalLoss, biggestLoss });
+        console.log('💰 Trading Analysis:', { 
+          totalProfit, 
+          totalLoss, 
+          netResult,
+          biggestLoss, 
+          biggestProfit,
+          status: netResult >= 0 ? 'PROFITABLE' : 'LOSING'
+        });
 
         // Update database and get rank (with error handling)
         try {
@@ -139,12 +194,19 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     isLoading,
     error,
     totalLosses: calculateTotalLosses(transactions),
+    totalProfits: calculateTotalProfits(transactions),
+    netResult: calculateNetResult(transactions),
     biggestLoss: transactions.reduce((max, tx) => 
       tx.type === 'bet' && tx.success && tx.amount > max ? tx.amount : max, 0
+    ),
+    biggestProfit: transactions.reduce((max, tx) => 
+      tx.type === 'withdraw' && tx.success && tx.amount > max ? tx.amount : max, 0
     ),
     currentBatch,
     totalBatches,
     rankData,
-    forceRefresh, // Add this to enable manual refresh
+    forceRefresh,
+    // 🆕 Return real-time stats
+    realTimeStats,
   };
 }; 

@@ -29,7 +29,8 @@ export default function Home() {
     currentBatch,
     totalBatches,
     rankData,
-    forceRefresh
+    forceRefresh,
+    realTimeStats
   } = usePumpTransactions(searchAddress);
 
   const formatSOL = (amount: number) => `${amount.toFixed(2)} SOL`;
@@ -92,53 +93,52 @@ export default function Home() {
 
             <AddressSearch onAddressSubmit={setSearchAddress} />
 
-            {isLoading ? (
-              <div className="mb-8">
-                <MemeProgressBar 
-                  currentBatch={currentBatch || 0} 
-                  totalBatches={totalBatches || 0}
-                />
-                {/* Remove the share button from here - it was showing during loading */}
-              </div>
-            ) : (
-              searchAddress && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
-                    <div className="relative z-10">
-                      <h3 className="text-lg font-semibold text-white/80 mb-3">Total Losses</h3>
-                      <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
-                        {formatSOL(totalLosses)}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
-                    <div className="relative z-10">
-                      <h3 className="text-lg font-semibold text-white/80 mb-3">Total Transactions</h3>
-                      <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
-                        {transactions.length}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
-                    <div className="relative z-10">
-                      <h3 className="text-lg font-semibold text-white/80 mb-3">Biggest Loss</h3>
-                      <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
-                        {formatSOL(biggestLoss)}
-                      </p>
-                    </div>
-                  </div>
+            {isLoading && (
+              <MemeProgressBar 
+                currentBatch={currentBatch}
+                totalBatches={totalBatches}
+                realTimeStats={realTimeStats}
+              />
+            )}
 
-                  <UserRankCard
-                    rank={rankData?.rank ?? null}
-                    totalParticipants={rankData?.totalParticipants ?? 0}
-                  />
+            {/* 🆕 Only show stats cards when NOT loading and have results */}
+            {!isLoading && searchAddress && transactions.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-semibold text-white/80 mb-3">Total Losses</h3>
+                    <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
+                      {formatSOL(totalLosses)}
+                    </p>
+                  </div>
                 </div>
-              )
+                
+                <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-semibold text-white/80 mb-3">Total Transactions</h3>
+                    <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
+                      {transactions.length}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="relative overflow-hidden rounded-2xl p-6 border border-white/20 bg-gradient-to-br from-white/10 via-white/5 to-white/10 backdrop-blur-xl shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#654358]/20 via-[#17092A]/30 to-[#2F0D64]/20 opacity-60"></div>
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-semibold text-white/80 mb-3">Biggest Loss</h3>
+                    <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-[#D69DDE] to-[#B873F8] bg-clip-text text-transparent">
+                      {formatSOL(biggestLoss)}
+                    </p>
+                  </div>
+                </div>
+
+                <UserRankCard
+                  rank={rankData?.rank ?? null}
+                  totalParticipants={rankData?.totalParticipants ?? 0}
+                />
+              </div>
             )}
 
             {/* Add share button here - only after loading is complete and we have results */}

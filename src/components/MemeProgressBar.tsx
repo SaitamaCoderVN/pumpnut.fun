@@ -8,12 +8,22 @@ const tomorrow = Tomorrow({
   subsets: ['latin'],
 });
 
+interface RealTimeStats {
+  processedTransactions: number;
+  pumpTransactions: number;
+  totalProfit: number;
+  totalLoss: number;
+  netResult: number;
+  currentBatchProgress: string;
+}
+
 interface MemeProgressBarProps {
   currentBatch: number;
   totalBatches: number;
+  realTimeStats?: RealTimeStats;
 }
 
-export const MemeProgressBar = ({ currentBatch, totalBatches }: MemeProgressBarProps) => {
+export const MemeProgressBar = ({ currentBatch, totalBatches, realTimeStats }: MemeProgressBarProps) => {
   const progress = (currentBatch / totalBatches) * 100;
   
   // Determine stage based on progress
@@ -103,13 +113,25 @@ export const MemeProgressBar = ({ currentBatch, totalBatches }: MemeProgressBarP
         </div>
       </div>
 
-      {/* Pain Level */}
+      {/* Pain Level + Net SOL */}
       <div className="text-center">
-        <div 
-          className="text-lg md:text-xl font-bold text-red-400"
-          style={tomorrow.style}
-        >
-          Pain Level: {painLevel}%
+        <div className="flex justify-center items-center gap-4">
+          <div 
+            className="text-lg md:text-xl font-bold text-red-400"
+            style={tomorrow.style}
+          >
+            Pain Level: {painLevel}%
+          </div>
+          
+          {/* 🆕 Net SOL Display */}
+          {realTimeStats && (
+            <div 
+              className={`text-lg md:text-xl font-bold ${realTimeStats.netResult >= 0 ? 'text-green-400' : 'text-red-400'}`}
+              style={tomorrow.style}
+            >
+              Net: {realTimeStats.netResult >= 0 ? '+' : ''}{realTimeStats.netResult.toFixed(4)} SOL
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -52,14 +52,23 @@ export const updateWalletLosses = async (
     let referralCode = walletAddress.slice(0, 8); // Use first 8 characters as default
 
     // Check if user already exists and has a referral code
-    const { data: existingUser, error: selectError } = await supabase
-      .from('wallet_losses')
-      .select('referral_code')
-      .eq('wallet_address', walletAddress)
-      .single();
+    // Only check if the referral_code column exists
+    let existingUser = null;
+    try {
+      const { data, error: selectError } = await supabase
+        .from('wallet_losses')
+        .select('referral_code')
+        .eq('wallet_address', walletAddress)
+        .single();
 
-    if (selectError && selectError.code !== 'PGRST116') {
-      console.warn('Error checking existing user:', selectError);
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.warn('Error checking existing user:', selectError);
+        // If column doesn't exist, we'll handle it in the upsert
+      } else {
+        existingUser = data;
+      }
+    } catch (error) {
+      console.warn('Referral code column may not exist yet:', error);
     }
 
     if (existingUser?.referral_code) {
@@ -67,25 +76,49 @@ export const updateWalletLosses = async (
     }
 
     // First, update or insert the user's data
-    const { error: upsertError } = await supabase
-      .from('wallet_losses')
-      .upsert(
-        {
-          wallet_address: walletAddress,
-          total_losses: totalLosses,
-          total_transactions: transactions.length,
-          biggest_loss: biggestLoss,
-          last_updated: new Date().toISOString(),
-          referral_code: referralCode,
-        },
-        {
-          onConflict: 'wallet_address',
-        }
-      );
+    // Handle both cases - with and without referral_code column
+    let upsertData: any = {
+      wallet_address: walletAddress,
+      total_losses: totalLosses,
+      total_transactions: transactions.length,
+      biggest_loss: biggestLoss,
+      last_updated: new Date().toISOString(),
+    };
 
-    if (upsertError) {
-      console.error('Upsert error:', upsertError);
-      throw upsertError;
+    // Try to include referral_code if column exists
+    try {
+      upsertData.referral_code = referralCode;
+      
+      const { error: upsertError } = await supabase
+        .from('wallet_losses')
+        .upsert(upsertData, {
+          onConflict: 'wallet_address',
+        });
+
+      if (upsertError) {
+        // If error is about referral_code column, try without it
+        if (upsertError.message?.includes('referral_code')) {
+          console.warn('Referral code column not found, updating without it');
+          delete upsertData.referral_code;
+          
+          const { error: secondTryError } = await supabase
+            .from('wallet_losses')
+            .upsert(upsertData, {
+              onConflict: 'wallet_address',
+            });
+            
+          if (secondTryError) {
+            console.error('Second upsert error:', secondTryError);
+            throw secondTryError;
+          }
+        } else {
+          console.error('Upsert error:', upsertError);
+          throw upsertError;
+        }
+      }
+    } catch (error) {
+      console.error('Error in upsert operation:', error);
+      throw error;
     }
 
     // Try to get user rank (with fallback if RPC function doesn't exist)
