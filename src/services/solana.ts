@@ -1,11 +1,14 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
 
 
-// pump.fun program ID (verified)
-const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+// pump.fun program ID (correct mainnet program ID)
+const PUMP_PROGRAM_ID = process.env.NEXT_PUBLIC_PUMP_PROGRAM_ID || '';
 
 // Thay đổi endpoint RPC
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
+const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || '';
+
+// Configuration constants
+const MAX_TRANSACTIONS = parseInt(process.env.NEXT_PUBLIC_MAX_TRANSACTIONS || '');
 
 // Connection configuration
 const connectionConfig: ConnectionConfig = {
@@ -116,74 +119,10 @@ const fetchWithTimeout = async <T>(
   }
 };
 
-// Update the helper function
+// Helper function to check if an instruction uses pump.fun program
 const isPumpInstruction = (instruction: CompiledInstruction | MessageCompiledInstruction, accounts: PublicKey[]): boolean => {
-  // Check if the program ID is the pump.fun program
   const programId = accounts[instruction.programIdIndex];
   return programId && programId.toBase58() === PUMP_PROGRAM_ID;
-};
-
-// Update the transaction processing logic
-const determineTransactionType = (
-  preBalance: number,
-  postBalance: number,
-  accounts: PublicKey[],
-  instructions: CompiledInstruction[]
-): 'deposit' | 'withdraw' | 'bet' => {
-  const balanceChange = (preBalance - postBalance) / 1e9;
-  
-  // If it's a pump.fun program instruction and there's a balance decrease, it's likely a bet
-  const isPumpBet = instructions.some(ix => isPumpInstruction(ix, accounts));
-  
-  if (isPumpBet && balanceChange > 0) {
-    return 'bet';
-  }
-  
-  // Otherwise determine based on balance change
-  if (balanceChange < 0) {
-    return 'deposit';
-  }
-  return 'withdraw';
-};
-
-// In the transaction processing section, update the check:
-const processTransaction = async (tx: TransactionResponse) => {
-  // ... existing code ...
-
-  // Get all accounts involved in the transaction
-  let accounts: PublicKey[];
-  if ('version' in tx.transaction.message) {
-    accounts = [...(tx.transaction.message as unknown as MessageV0).staticAccountKeys];
-    if (tx.meta?.loadedAddresses) {
-      accounts = accounts.concat(
-        tx.meta.loadedAddresses.writable,
-        tx.meta.loadedAddresses.readonly
-      );
-    }
-  } else {
-    const legacyMessage = tx.transaction.message as Message;
-    accounts = legacyMessage.accountKeys;
-  }
-
-  // Check if any instruction uses the pump.fun program
-  let foundPumpProgram = false;
-  const message = tx.transaction.message as Message | MessageV0;
-  if ('version' in message) {
-    foundPumpProgram = message.compiledInstructions.some(ix => 
-      isPumpInstruction(ix, accounts)
-    );
-  } else {
-    foundPumpProgram = (message as Message).instructions.some(ix => 
-      isPumpInstruction(ix, accounts)
-    );
-  }
-
-  if (!foundPumpProgram) {
-    console.log(`Transaction ${tx.transaction.signatures[0]} is not a pump.fun transaction`);
-    return null;
-  }
-
-  // ... rest of the processing code ...
 };
 
 // Add a sleep utility function if not already present
@@ -196,17 +135,15 @@ export const fetchPumpTransactions = async (
   onProgress?: (current: number, total: number) => void
 ): Promise<PumpTransaction[]> => {
   try {
-    // Validate RPC endpoint
-    if (HELIUS_RPC_ENDPOINT.includes('api.mainnet-beta.solana.com')) {
-      throw new Error('Please use a dedicated RPC endpoint (Helius, QuickNode, Alchemy) for production');
-    }
+    // Log the RPC endpoint being used
+    console.log('Using RPC endpoint:', HELIUS_RPC_ENDPOINT);
 
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
     const allSignatures = await conn.getSignaturesForAddress(
       pubKey,
-      { limit: 100 },
+      { limit: MAX_TRANSACTIONS }, // Increase limit to get more transactions
       'confirmed'
     );
 
@@ -265,10 +202,25 @@ export const fetchPumpTransactions = async (
               accounts = legacyMessage.accountKeys;
             }
 
-            // Check for pump.fun program ID in any of the accounts
-            const isPumpTransaction = accounts.some(account => 
-              account.toBase58() === PUMP_PROGRAM_ID
-            );
+            // Check if any instruction uses the pump.fun program
+            let isPumpTransaction = false;
+            const message = tx.transaction.message;
+            
+            if ('version' in message) {
+              // MessageV0 format
+              const compiledInstructions = (message as MessageV0).compiledInstructions;
+              isPumpTransaction = compiledInstructions.some(ix => {
+                const programId = accounts[ix.programIdIndex];
+                return programId && programId.toBase58() === PUMP_PROGRAM_ID;
+              });
+            } else {
+              // Legacy Message format
+              const instructions = (message as Message).instructions;
+              isPumpTransaction = instructions.some(ix => {
+                const programId = accounts[ix.programIdIndex];
+                return programId && programId.toBase58() === PUMP_PROGRAM_ID;
+              });
+            }
 
             if (!isPumpTransaction) {
               return;
@@ -283,43 +235,49 @@ export const fetchPumpTransactions = async (
               return;
             }
 
-            // Calculate balance changes
+            // Calculate SOL balance changes
             const preBalance = tx.meta?.preBalances[userAccountIndex] || 0;
             const postBalance = tx.meta?.postBalances[userAccountIndex] || 0;
-            const balanceChange = Math.abs((preBalance - postBalance) / 1e9);
-
-            // If there's a significant balance change, record the transaction
-            if (balanceChange > 0.000001) { // Filter out dust transactions
+            const solBalanceChange = (preBalance - postBalance) / 1e9; // Convert from lamports to SOL
+            
+            // For pump.fun, we're mainly interested in SOL spent (losses)
+            // A positive solBalanceChange means SOL was spent (user lost SOL)
+            if (solBalanceChange > 0.001) { // Only count significant SOL losses (>0.001 SOL)
+              // Check if this was a successful transaction
+              const success = tx.meta?.err === null;
+              
+              // Determine transaction type based on instruction data if possible
+              let transactionType: 'deposit' | 'withdraw' | 'bet' = 'bet';
+              
+              // For pump.fun, most SOL spending transactions are "bets" (buying tokens)
+              if (solBalanceChange > 0) {
+                transactionType = 'bet'; // User spent SOL to buy tokens
+              }
+              
               transactions.push({
                 signature: sig.signature,
                 timestamp: tx.blockTime || Math.floor(Date.now() / 1000),
-                amount: balanceChange,
-                type: preBalance > postBalance ? 'bet' : 'withdraw',
-                success: tx.meta?.err === null,
+                amount: solBalanceChange, // This is the SOL amount lost
+                type: transactionType,
+                success: success,
               });
               
               console.log(`Found pump.fun transaction:`, {
                 signature: sig.signature,
-                amount: balanceChange,
-                type: preBalance > postBalance ? 'bet' : 'withdraw',
+                solSpent: solBalanceChange,
+                type: transactionType,
+                success: success,
+                preBalance: preBalance / 1e9,
+                postBalance: postBalance / 1e9,
               });
             }
 
           } catch (error) {
+            console.error('Error processing transaction:', sig.signature, error);
+            
             if (error instanceof Error && error.message?.includes('429')) {
-              // If we hit a rate limit, wait longer and retry once
-              await sleep(3000);
-              try {
-                const tx = await conn.getTransaction(sig.signature, {
-                  maxSupportedTransactionVersion: 0,
-                  commitment: 'confirmed',
-                });
-                // ... process transaction ...
-              } catch (retryError) {
-                console.error('Error after retry:', sig.signature, retryError);
-              }
-            } else {
-              console.error('Error processing transaction:', sig.signature, error);
+              console.log('Rate limit hit, sleeping before next batch...');
+              await sleep(5000); // Wait longer for rate limits
             }
           }
         })
@@ -339,12 +297,15 @@ export const fetchPumpTransactions = async (
 };
 
 export const calculateTotalLosses = (transactions: PumpTransaction[]): number => {
-  return transactions.reduce((total, tx) => {
-    // Only count successful bets as losses
-    if (tx.type === 'bet' && tx.success) {
-      console.log(`Adding loss from transaction: ${tx.amount}`);
+  const totalLosses = transactions.reduce((total, tx) => {
+    // Only count successful bets as losses (SOL spent on pump.fun)
+    if (tx.type === 'bet' && tx.success && tx.amount > 0) {
+      console.log(`Adding loss from transaction ${tx.signature}: ${tx.amount} SOL`);
       return total + tx.amount;
     }
     return total;
   }, 0);
+  
+  console.log(`Total losses calculated: ${totalLosses} SOL from ${transactions.length} transactions`);
+  return totalLosses;
 }; 
