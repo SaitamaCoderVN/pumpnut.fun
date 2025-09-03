@@ -8,6 +8,11 @@ const PUMP_PROGRAM_IDS = [
   '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', // Main pump.fun program
   'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA', // Pump.fun AMM program
   'BSfD6SHZigAfDWSjzD5Q41jw8LmKwtmjskPH9XW1mrRW', // photton pump.fun program
+  'troY36YiPGqMyAYCNbEqYCdN2tb91Zf7bHcQt7KUi61', // trojan
+  'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ',
+  'CxvksNjwhdHDLr3qbCXNKVdeYACW8cs93vFqLqtgyFE5',
+  'BBRouter1cVunVXvkcqeKkZQcBK7ruan37PPm3xzWaXD',// bonk bot
+  'CroWg74XNDF8UMnAZVbXx49iVj7iJ7b4CsqTCVWF7aK'
   // Add more pump.fun program IDs as discovered
 ];
 
