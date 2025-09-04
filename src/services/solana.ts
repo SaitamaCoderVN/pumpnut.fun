@@ -1,4 +1,11 @@
 import { Connection, PublicKey, ConnectionConfig, Message, MessageV0, CompiledInstruction, MessageCompiledInstruction, TransactionResponse } from '@solana/web3.js';
+import { 
+  getCachedTransactions, 
+  saveTransactionsToCache, 
+  getWalletSyncInfo, 
+  updateWalletSyncInfo,
+  clearWalletCache 
+} from './database';
 
 
 // pump.fun program IDs (primary and AMM programs)
@@ -12,12 +19,26 @@ const PUMP_PROGRAM_IDS = [
   'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ',
   'CxvksNjwhdHDLr3qbCXNKVdeYACW8cs93vFqLqtgyFE5',
   'BBRouter1cVunVXvkcqeKkZQcBK7ruan37PPm3xzWaXD',// bonk bot
-  'CroWg74XNDF8UMnAZVbXx49iVj7iJ7b4CsqTCVWF7aK'
+  'CroWg74XNDF8UMnAZVbXx49iVj7iJ7b4CsqTCVWF7aK',
+  'AxiomfHaWDemCFBLBayqnEnNwE6b7B2Qz3UmzMpgbMG6', //axiom
+  'AxiomxSitiyXyPjKgJ9XSrdhsydtZsskZTEDam3PxKcC',
+  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',//jupiter
+  'j1o2qRpjcyUwEvwtcfhEQefh773ZgjxcVRry7LDqg5X',
+  'AxiomxSitiyXyPjKgJ9XSrdhsydtZsskZTEDam3PxKcC',
+  'BSwp6bEBihVLdqJRKGgzjcGLHkcTuzmSo1TQkHepzH8p',
+  'b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1',//bloom
+  'MaestroAAe9ge5HTc64VbBQZ6fP77pwvrhM8i1XWSAx',//Maestro
+  'BANANAjs7FJiPQqJTGFzkZJndT9o7UmKiYYGaJz6frGu',//Banana
+  'BANANAtm3yvgJ6Km4iv3wtxCNkhFvXEWggASPk9pEYrz',//Banana v2
   // Add more pump.fun program IDs as discovered
 ];
 
-// Thay đổi endpoint RPC
-const HELIUS_RPC_ENDPOINT = process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
+// Multiple RPC endpoints for fallback
+const RPC_ENDPOINTS = [
+  process.env.NEXT_PUBLIC_HELIUS_RPC_ENDPOINT || 'https://mainnet.helius-rpc.com/?api-key=fd203766-a6ec-407b-824d-40e6b7bc44e5',
+];
+
+let currentRpcIndex = 0;
 
 // Configuration constants
 const MAX_TRANSACTIONS = parseInt(process.env.NEXT_PUBLIC_MAX_TRANSACTIONS || '1000') || 1000; // Increased to get more transactions
@@ -109,7 +130,20 @@ const fetchWithRetry = async (
 };
 
 const createConnection = () => {
-  return new Connection(HELIUS_RPC_ENDPOINT, connectionConfig);
+  const endpoint = RPC_ENDPOINTS[currentRpcIndex];
+  
+  // Validate endpoint
+  if (!endpoint || (!endpoint.startsWith('http://') && !endpoint.startsWith('https://'))) {
+    throw new Error(`Invalid RPC endpoint: ${endpoint}. Please check your environment variables.`);
+  }
+  
+  console.log(`Using RPC endpoint: ${endpoint}`);
+  return new Connection(endpoint, connectionConfig);
+};
+
+const switchToNextRpc = () => {
+  currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length;
+  console.log(`Switching to RPC endpoint: ${RPC_ENDPOINTS[currentRpcIndex]}`);
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -149,35 +183,77 @@ export interface ProgressData {
   currentBatchProgress: string;
 }
 
-// Fetch latest transactions and detect pump.fun ones
+// Fetch new transactions since last sync and detect pump.fun ones
 export const fetchLatestPumpTransactions = async (
   connection: Connection,
   walletAddress: string,
-  onProgress?: (current: number, total: number, progressData?: ProgressData) => void
+  onProgress?: (current: number, total: number, progressData?: ProgressData) => void,
+  forceRefresh: boolean = false
 ): Promise<PumpTransaction[]> => {
   try {
     // Log the RPC endpoint being used
-    console.log('Using RPC endpoint:', HELIUS_RPC_ENDPOINT);
+    console.log('Using RPC endpoint:', RPC_ENDPOINTS[currentRpcIndex]);
     console.log('Using PUMP_PROGRAM_IDS:', PUMP_PROGRAM_IDS);
     console.log('MAX_TRANSACTIONS:', MAX_TRANSACTIONS);
 
     const conn = createConnection();
     const pubKey = new PublicKey(walletAddress);
 
-    // Build options for getSignaturesForAddress - ALWAYS fetch latest MAX_TRANSACTIONS
+    // Check if we should use cached data or force refresh
+    let syncInfo: { lastSyncSignature: string | null, lastSyncTimestamp: number | null } = { 
+      lastSyncSignature: null, 
+      lastSyncTimestamp: null 
+    };
+    let cachedTransactions: PumpTransaction[] = [];
+    
+    if (!forceRefresh) {
+      try {
+        // Get cached transactions first
+        console.log('Fetching cached transactions...');
+        const cached = await getCachedTransactions(walletAddress);
+        cachedTransactions = cached.map(tx => ({
+          signature: tx.signature,
+          timestamp: tx.timestamp,
+          amount: tx.amount,
+          type: tx.type as 'deposit' | 'withdraw' | 'bet',
+          success: tx.success
+        }));
+
+        // Get sync info
+        syncInfo = await getWalletSyncInfo(walletAddress);
+        console.log('Sync info:', syncInfo);
+        
+        if (cachedTransactions.length > 0) {
+          console.log(`Found ${cachedTransactions.length} cached transactions`);
+        }
+      } catch (error) {
+        console.warn('Error fetching cached data, will fetch fresh data:', error);
+      }
+    } else {
+      console.log('Force refresh requested, clearing cache...');
+      await clearWalletCache(walletAddress);
+    }
+
+    // Build options for getSignaturesForAddress
     const options: any = {
       limit: MAX_TRANSACTIONS,
       commitment: 'confirmed'
     };
 
-    console.log(`Fetching latest ${MAX_TRANSACTIONS} transactions for wallet`);
+    // If we have a last sync signature, start from there
+    if (syncInfo.lastSyncSignature && !forceRefresh) {
+      options.before = syncInfo.lastSyncSignature;
+      console.log(`Fetching transactions after signature: ${syncInfo.lastSyncSignature}`);
+    } else {
+      console.log(`Fetching latest ${MAX_TRANSACTIONS} transactions for wallet`);
+    }
 
     const allSignatures = await conn.getSignaturesForAddress(pubKey, options);
-    console.log(`Found ${allSignatures.length} total signatures for address: ${walletAddress}`);
+    console.log(`Found ${allSignatures.length} new signatures for address: ${walletAddress}`);
 
     if (allSignatures.length === 0) {
-      console.log('No signatures found for this address');
-      return [];
+      console.log('No new signatures found for this address');
+      return cachedTransactions.sort((a, b) => b.timestamp - a.timestamp);
     }
 
     const batchSize = 5; // Increased batch size for better performance
@@ -474,12 +550,50 @@ export const fetchLatestPumpTransactions = async (
       );
     }
 
-    console.log(`Successfully processed ${transactions.length} pump.fun transactions`);
-    return transactions.sort((a, b) => b.timestamp - a.timestamp);
+    console.log(`Successfully processed ${transactions.length} new pump.fun transactions`);
+    
+    // Save new transactions to cache
+    if (transactions.length > 0) {
+      try {
+        await saveTransactionsToCache(walletAddress, transactions);
+        console.log(`Saved ${transactions.length} new transactions to cache`);
+      } catch (error) {
+        console.warn('Error saving transactions to cache:', error);
+      }
+    }
+
+    // Update sync info with the latest transaction
+    if (allSignatures.length > 0) {
+      const latestSignature = allSignatures[0].signature;
+      const latestTimestamp = allSignatures[0].blockTime || Math.floor(Date.now() / 1000);
+      
+      try {
+        await updateWalletSyncInfo(walletAddress, latestSignature, latestTimestamp);
+        console.log(`Updated sync info: ${latestSignature} at ${latestTimestamp}`);
+      } catch (error) {
+        console.warn('Error updating sync info:', error);
+      }
+    }
+
+    // Combine cached and new transactions
+    const allTransactions = [...cachedTransactions, ...transactions];
+    return allTransactions.sort((a, b) => b.timestamp - a.timestamp);
 
   } catch (error) {
-    if (error instanceof Error && error.message?.includes('429')) {
-      throw new Error('Rate limit exceeded. Please try again in a few minutes.');
+    if (error instanceof Error) {
+      if (error.message?.includes('429')) {
+        throw new Error('Rate limit exceeded. Please try again in a few minutes.');
+      } else if (error.message?.includes('403') || error.message?.includes('Access forbidden')) {
+        // Try next RPC endpoint
+        if (currentRpcIndex < RPC_ENDPOINTS.length - 1) {
+          console.log('RPC access forbidden, trying next endpoint...');
+          switchToNextRpc();
+          // Retry with new RPC endpoint
+          return fetchLatestPumpTransactions(connection, walletAddress, onProgress, forceRefresh);
+        } else {
+          throw new Error('All RPC endpoints failed. Please check your internet connection or try again later.');
+        }
+      }
     }
     console.error('Error fetching transactions:', error);
     throw error;
@@ -523,11 +637,40 @@ export const calculateNetResult = (transactions: PumpTransaction[]): number => {
   return net;
 };
 
-// Update the function signature to accept progressData parameter
+// Update the function signature to accept progressData parameter and forceRefresh
 export async function fetchPumpTransactions(
   connection: Connection,
   walletAddress: string,
-  onProgress?: (current: number, total: number, progressData?: ProgressData) => void
+  onProgress?: (current: number, total: number, progressData?: ProgressData) => void,
+  forceRefresh: boolean = false
 ): Promise<PumpTransaction[]> {
-  return fetchLatestPumpTransactions(connection, walletAddress, onProgress);
+  return fetchLatestPumpTransactions(connection, walletAddress, onProgress, forceRefresh);
+}
+
+// Helper function to get sync status for debugging
+export async function getSyncStatus(walletAddress: string): Promise<{
+  hasCachedData: boolean;
+  lastSyncSignature: string | null;
+  lastSyncTimestamp: number | null;
+  cachedTransactionCount: number;
+}> {
+  try {
+    const syncInfo = await getWalletSyncInfo(walletAddress);
+    const cachedTransactions = await getCachedTransactions(walletAddress);
+    
+    return {
+      hasCachedData: cachedTransactions.length > 0,
+      lastSyncSignature: syncInfo.lastSyncSignature,
+      lastSyncTimestamp: syncInfo.lastSyncTimestamp,
+      cachedTransactionCount: cachedTransactions.length
+    };
+  } catch (error) {
+    console.error('Error getting sync status:', error);
+    return {
+      hasCachedData: false,
+      lastSyncSignature: null,
+      lastSyncTimestamp: null,
+      cachedTransactionCount: 0
+    };
+  }
 } 

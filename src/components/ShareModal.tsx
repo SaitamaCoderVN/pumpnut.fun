@@ -23,12 +23,121 @@ export const ShareModal = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
+  const renderCanvas = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, hasBackground: boolean = true) => {
+    if (!hasBackground) {
+      // Fill with dark background
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Configure text styles
+    ctx.fillStyle = 'white';
+    
+    // Left side - PUMPANALYTICS (vertically aligned with -90 degree rotated letters)
+    const text = 'SCITYLANAPMUP'.split('').reverse().join(''); // Reverse the text for correct reading order
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 48px Inter';
+    const startY = 540; // Start from bottom
+    const letterSpacing = 40; // Increased gap between letters
+    
+    // Save the current context state
+    ctx.save();
+    
+    // For each letter, translate to position, rotate -90 degrees, draw text
+    text.split('').forEach((letter, index) => {
+      ctx.save(); // Save state before rotation
+      ctx.translate(100, startY - (index * letterSpacing));
+      ctx.rotate(-Math.PI / 2); // Rotate -90 degrees
+      ctx.fillText(letter, 0, 0);
+      ctx.restore(); // Restore state after rotation
+    });
+    
+    // Restore the original context state
+    ctx.restore();
+
+    // Right side - Stats card with blur effect (wider layout)
+    const cardX = canvas.width / 2 - 150; // Moved left to make room for wider card
+    const cardY = 100;
+    const cardWidth = canvas.width / 2 + 100; // Increased width
+    const cardHeight = 350;
+    
+    // Draw blurred background for card
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.filter = 'blur(30px)';
+    ctx.fillRect(cardX, cardY, cardWidth, cardHeight);
+    ctx.restore();
+    
+    // Draw card border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cardX, cardY, cardWidth, cardHeight);
+    
+    // Stats content with improved spacing
+    const contentStartX = cardX + 60; // Increased left padding for labels
+    const valueX = cardX + cardWidth - 60; // Increased right padding for values
+    const startStatsY = cardY + 100; // Increased top padding
+    const statSpacing = 100; // Increased vertical spacing between stats
+    
+    // Total Losses
+    ctx.font = '36px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'white';
+    ctx.fillText('Total Losses', contentStartX, startStatsY);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 48px Inter';
+    ctx.fillText(`${totalLosses.toFixed(2)} SOL`, valueX, startStatsY);
+    
+    // Biggest Loss
+    ctx.textAlign = 'left';
+    ctx.font = '36px Inter';
+    ctx.fillText('Biggest Loss', contentStartX, startStatsY + statSpacing);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 48px Inter';
+    ctx.fillText(`${biggestLoss.toFixed(2)} SOL`, valueX, startStatsY + statSpacing);
+    
+    // Total Transactions
+    ctx.textAlign = 'left';
+    ctx.font = '36px Inter';
+    ctx.fillText('Total Transactions', contentStartX, startStatsY + statSpacing * 2);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 48px Inter';
+    ctx.fillText(`${transactionCount}`, valueX, startStatsY + statSpacing * 2);
+
+    // Add airdrop description
+    ctx.textAlign = 'center';
+    ctx.font = '24px Inter';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fillText('We will airdrop to you based on your total SOL losses', canvas.width/2, canvas.height - 80);
+    
+    // Add website URL
+    ctx.font = '20px Inter';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = 'bold 20px Inter';
+    ctx.fillText('pumpanalytics.xyz', canvas.width/2, canvas.height - 40);
+
+    // Convert canvas to data URL
+    const dataUrl = canvas.toDataURL('image/png');
+    console.log('ShareModal: Canvas rendered successfully, data URL length:', dataUrl.length);
+    setImageUrl(dataUrl);
+  };
+
   useEffect(() => {
     if (!isOpen || !canvasRef.current) return;
 
+    console.log('ShareModal: Starting canvas rendering with props:', {
+      totalLosses,
+      biggestLoss,
+      transactionCount,
+      referralCode
+    });
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('ShareModal: Failed to get canvas context');
+      return;
+    }
 
     // Set canvas size
     canvas.width = 1200;
@@ -38,98 +147,18 @@ export const ShareModal = ({
     const bgImage = new Image();
     bgImage.src = '/raw-5.png';
     bgImage.onload = () => {
+      console.log('ShareModal: Background image loaded successfully');
       // Draw background
       ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-
-      // Configure text styles
-      ctx.fillStyle = 'white';
-      
-      // Left side - PUMPANALYTICS (vertically aligned with -90 degree rotated letters)
-      const text = 'SCITYLANAPMUP'.split('').reverse().join(''); // Reverse the text for correct reading order
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 48px Inter';
-      const startY = 540; // Start from bottom
-      const letterSpacing = 40; // Increased gap between letters
-      
-      // Save the current context state
-      ctx.save();
-      
-      // For each letter, translate to position, rotate -90 degrees, draw text
-      text.split('').forEach((letter, index) => {
-        ctx.save(); // Save state before rotation
-        ctx.translate(100, startY - (index * letterSpacing));
-        ctx.rotate(-Math.PI / 2); // Rotate -90 degrees
-        ctx.fillText(letter, 0, 0);
-        ctx.restore(); // Restore state after rotation
-      });
-      
-      // Restore the original context state
-      ctx.restore();
-
-      // Right side - Stats card with blur effect (wider layout)
-      const cardX = canvas.width / 2 - 150; // Moved left to make room for wider card
-      const cardY = 100;
-      const cardWidth = canvas.width / 2 + 100; // Increased width
-      const cardHeight = 350;
-      
-      // Draw blurred background for card
-      ctx.save();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.filter = 'blur(30px)';
-      ctx.fillRect(cardX, cardY, cardWidth, cardHeight);
-      ctx.restore();
-      
-      // Draw card border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cardX, cardY, cardWidth, cardHeight);
-      
-      // Stats content with improved spacing
-      const contentStartX = cardX + 60; // Increased left padding for labels
-      const valueX = cardX + cardWidth - 60; // Increased right padding for values
-      const startStatsY = cardY + 100; // Increased top padding
-      const statSpacing = 100; // Increased vertical spacing between stats
-      
-      // Total Losses
-      ctx.font = '36px Inter';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = 'white';
-      ctx.fillText('Total Losses', contentStartX, startStatsY);
-      ctx.textAlign = 'right';
-      ctx.font = 'bold 48px Inter';
-      ctx.fillText(`${totalLosses.toFixed(2)} SOL`, valueX, startStatsY);
-      
-      // Biggest Loss
-      ctx.textAlign = 'left';
-      ctx.font = '36px Inter';
-      ctx.fillText('Biggest Loss', contentStartX, startStatsY + statSpacing);
-      ctx.textAlign = 'right';
-      ctx.font = 'bold 48px Inter';
-      ctx.fillText(`${biggestLoss.toFixed(2)} SOL`, valueX, startStatsY + statSpacing);
-      
-      // Total Transactions
-      ctx.textAlign = 'left';
-      ctx.font = '36px Inter';
-      ctx.fillText('Total Transactions', contentStartX, startStatsY + statSpacing * 2);
-      ctx.textAlign = 'right';
-      ctx.font = 'bold 48px Inter';
-      ctx.fillText(`${transactionCount}`, valueX, startStatsY + statSpacing * 2);
-
-      // Add airdrop description
-      ctx.textAlign = 'center';
-      ctx.font = '24px Inter';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.fillText('We will airdrop to you based on your total SOL losses', canvas.width/2, canvas.height - 80);
-      
-      // Add website URL
-      ctx.font = '20px Inter';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = 'bold 20px Inter';
-      ctx.fillText('pumpanalytics.xyz', canvas.width/2, canvas.height - 40);
-
-      // Convert canvas to data URL
-      const dataUrl = canvas.toDataURL('image/png');
-      setImageUrl(dataUrl);
+      // Render canvas with background
+      renderCanvas(ctx, canvas, true);
+    };
+    
+    bgImage.onerror = (error) => {
+      console.error('ShareModal: Failed to load background image:', error);
+      // Still render the canvas without background image
+      console.log('ShareModal: Rendering canvas without background image');
+      renderCanvas(ctx, canvas, false);
     };
   }, [isOpen, totalLosses, biggestLoss, transactionCount]);
 
@@ -144,7 +173,12 @@ export const ShareModal = ({
   };
 
   const handleShare = async () => {
-    if (!imageUrl) return;
+    if (!imageUrl) {
+      console.error('ShareModal: No image URL available for sharing');
+      return;
+    }
+
+    console.log('ShareModal: Starting share process with referral code:', referralCode);
 
     try {
       // Convert data URL to blob
@@ -164,9 +198,10 @@ export const ShareModal = ({
         : `Just lost ${totalLosses.toFixed(2)} SOL on pump.fun! 🎰\n\nCheck your losses at ${referralLink}`;
 
       const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+      console.log('ShareModal: Opening Twitter share URL:', shareUrl);
       window.open(shareUrl, '_blank');
     } catch (error) {
-      console.error('Error sharing image:', error);
+      console.error('ShareModal: Error sharing image:', error);
     }
   };
 

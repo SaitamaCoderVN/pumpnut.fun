@@ -9,6 +9,8 @@ import { LosersLeaderboard } from '@/components/LosersLeaderboard';
 import { UserRankCard } from '@/components/UserRankCard';
 import { ClientWalletProvider } from '@/components/ClientWalletProvider';
 import { ShareModal } from '@/components/ShareModal';
+// import { SyncStatusDebug } from '@/components/SyncStatusDebug';
+// import { ShareDebug } from '@/components/ShareDebug';
 import { getReferralData, ReferralData } from '@/services/database';
 import { Tomorrow } from 'next/font/google';
 
@@ -220,6 +222,19 @@ export default function Home() {
                   <h3 className="text-xl md:text-2xl font-semibold text-red-300 mb-3" style={tomorrow.style}>Error</h3>
                   <p className="text-white/80 text-lg">{error}</p>
                 </div>
+              </div>
+            )}
+
+            {/* Debug Components - Only show in development */}
+            {process.env.NODE_ENV === 'development' && searchAddress && (
+              <div className="mt-8 space-y-4">
+                {/* <SyncStatusDebug walletAddress={searchAddress} />
+                <ShareDebug 
+                  totalLosses={totalLosses}
+                  biggestLoss={biggestLoss}
+                  transactionCount={transactions.length}
+                  referralCode={rankData?.referralCode || referralData?.referralCode}
+                /> */}
               </div>
             )}
 

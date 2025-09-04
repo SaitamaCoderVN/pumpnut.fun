@@ -22,7 +22,7 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     currentBatchProgress: ''
   });
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (forceRefresh: boolean = false) => {
     if (!searchAddressWithTimestamp) {
       setTransactions([]);
       setError(null);
@@ -43,7 +43,17 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     }
 
     // Extract the actual address and check for referral code
-    const searchAddress = searchAddressWithTimestamp.split('?')[0];
+    // Remove timestamp and any query parameters
+    const searchAddress = searchAddressWithTimestamp.split('?')[0].split('&')[0].trim();
+    
+    // Validate wallet address format (basic check)
+    if (!searchAddress || searchAddress.length < 32 || searchAddress.length > 44) {
+      setError('Invalid wallet address format');
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('Parsed wallet address:', searchAddress);
     
     // Check URL for referral code
     const urlParams = new URLSearchParams(window.location.search);
@@ -87,7 +97,8 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
               currentBatchProgress: progressData.currentBatchProgress
             });
           }
-        }
+        },
+        forceRefresh
       );
       
       console.log('Fetched transactions:', txs.length);
@@ -182,7 +193,7 @@ export const usePumpTransactions = (searchAddressWithTimestamp?: string) => {
     
     try {
       await clearWalletCache(searchAddress);
-      await fetchTransactions();
+      await fetchTransactions(true); // Pass forceRefresh = true
     } catch (err) {
       console.error('Error during force refresh:', err);
       setError('Failed to refresh data');
