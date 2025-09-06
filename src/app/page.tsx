@@ -2,6 +2,7 @@
 
 import { Header } from '@/components/Header';
 import { AddressSearch } from '@/components/AddressSearch';
+import { LeaderboardStats } from '@/components/LeaderboardStats';
 import { usePumpTransactions } from '@/hooks/usePumpTransactions';
 import { useState, useEffect } from 'react';
 import { MemeProgressBar } from '@/components/MemeProgressBar';
@@ -94,6 +95,9 @@ export default function Home() {
             </div>
 
             <AddressSearch onAddressSubmit={setSearchAddress} />
+
+            {/* Community Loss Report */}
+            <LeaderboardStats />
 
             {isLoading && (
               <MemeProgressBar 

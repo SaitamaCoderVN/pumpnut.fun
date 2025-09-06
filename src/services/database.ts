@@ -499,4 +499,74 @@ export const clearWalletCache = async (walletAddress: string): Promise<void> => 
   } catch (error) {
     console.error('Error clearing wallet cache:', error);
   }
+};
+
+// ===== LEADERBOARD STATISTICS =====
+
+export interface LeaderboardStats {
+  totalLosses: number;
+  totalParticipants: number;
+  averageLoss: number;
+  biggestLoss: number;
+  totalTransactions: number;
+  lastUpdated: string;
+}
+
+// Get comprehensive leaderboard statistics
+export const getLeaderboardStats = async (): Promise<LeaderboardStats> => {
+  try {
+    // Get all wallet losses data
+    const { data: walletData, error: walletError } = await supabase
+      .from('wallet_losses')
+      .select('total_losses, total_transactions, biggest_loss, last_updated')
+      .order('total_losses', { ascending: false });
+
+    if (walletError) {
+      console.error('Error fetching wallet data:', walletError);
+      throw walletError;
+    }
+
+    if (!walletData || walletData.length === 0) {
+      return {
+        totalLosses: 0,
+        totalParticipants: 0,
+        averageLoss: 0,
+        biggestLoss: 0,
+        totalTransactions: 0,
+        lastUpdated: new Date().toISOString()
+      };
+    }
+
+    // Calculate statistics
+    const totalLosses = walletData.reduce((sum, wallet) => sum + Number(wallet.total_losses || 0), 0);
+    const totalParticipants = walletData.length;
+    const averageLoss = totalParticipants > 0 ? totalLosses / totalParticipants : 0;
+    const biggestLoss = Math.max(...walletData.map(wallet => Number(wallet.biggest_loss || 0)));
+    const totalTransactions = walletData.reduce((sum, wallet) => sum + Number(wallet.total_transactions || 0), 0);
+    
+    // Get the most recent update time
+    const lastUpdated = walletData.reduce((latest, wallet) => {
+      const walletTime = new Date(wallet.last_updated || 0);
+      return walletTime > latest ? walletTime : latest;
+    }, new Date(0)).toISOString();
+
+    return {
+      totalLosses,
+      totalParticipants,
+      averageLoss,
+      biggestLoss,
+      totalTransactions,
+      lastUpdated
+    };
+  } catch (error) {
+    console.error('Error getting leaderboard stats:', error);
+    return {
+      totalLosses: 0,
+      totalParticipants: 0,
+      averageLoss: 0,
+      biggestLoss: 0,
+      totalTransactions: 0,
+      lastUpdated: new Date().toISOString()
+    };
+  }
 }; 
