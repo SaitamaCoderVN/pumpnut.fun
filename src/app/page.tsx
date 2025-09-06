@@ -96,8 +96,8 @@ export default function Home() {
 
             <AddressSearch onAddressSubmit={setSearchAddress} />
 
-            {/* Community Loss Report */}
-            <LeaderboardStats />
+            {/* Community Loss Report - Only show when no search has been performed */}
+            {!searchAddress && <LeaderboardStats />}
 
             {isLoading && (
               <MemeProgressBar 
@@ -105,6 +105,34 @@ export default function Home() {
                 totalBatches={totalBatches}
                 realTimeStats={realTimeStats}
               />
+            )}
+
+            {/* Wallet Search Results Header */}
+            {!isLoading && searchAddress && transactions.length > 0 && (
+              <div className="text-center mb-8">
+                <div className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 max-w-4xl mx-auto">
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                    📊 Wallet Analysis Results
+                  </h2>
+                  <p className="text-white/70 text-lg mb-4">
+                    Analysis for: <span className="font-mono text-purple-300">{searchAddress}</span>
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => setSearchAddress('')}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 rounded-lg text-white font-medium transition-colors text-sm"
+                    >
+                      📊 View Community Stats
+                    </button>
+                    <button
+                      onClick={() => setSearchAddress('')}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg text-white font-medium transition-colors text-sm"
+                    >
+                      🔍 Search Another Wallet
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* 🆕 Only show stats cards when NOT loading and have results */}
